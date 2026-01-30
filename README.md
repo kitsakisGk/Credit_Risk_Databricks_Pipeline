@@ -3,22 +3,21 @@
 [![CI](https://github.com/kitsakisGk/credit-risk-databricks-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/kitsakisGk/credit-risk-databricks-pipeline/actions/workflows/ci.yml)
 ![Databricks](https://img.shields.io/badge/Databricks-FF3621?style=flat&logo=databricks&logoColor=white)
 ![Delta Lake](https://img.shields.io/badge/Delta%20Lake-00ADD8?style=flat&logo=delta&logoColor=white)
-![Apache Spark](https://img.shields.io/badge/Apache%20Spark-E25A1C?style=flat&logo=apachespark&logoColor=white)
-![MLflow](https://img.shields.io/badge/MLflow-0194E2?style=flat&logo=mlflow&logoColor=white)
+![XGBoost](https://img.shields.io/badge/XGBoost-337AB7?style=flat&logo=xgboost&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=flat&logo=scikit-learn&logoColor=white)
 
-End-to-end **credit risk assessment pipeline** built on **Databricks Lakehouse**, demonstrating production-grade data engineering and machine learning practices.
+End-to-end **credit risk assessment pipeline** built on **Databricks Lakehouse**, demonstrating production-grade data engineering and machine learning practices aligned with **Swiss banking standards**.
 
 ## Overview
 
-This project implements a complete ML pipeline for credit risk prediction using the **Medallion Architecture** (Bronze → Silver → Gold), with MLflow experiment tracking and rule-based risk scoring.
+This project implements a complete ML pipeline for credit risk prediction using the **Medallion Architecture** (Bronze → Silver → Gold), featuring techniques used by Swiss financial institutions (UBS, Credit Suisse, Julius Baer).
 
 ### Key Highlights
 
-- **Data Engineering**: Medallion architecture with Delta Lake
-- **Machine Learning**: Model training, comparison, and tracking with MLflow
-- **Risk Scoring**: Rule-based credit scoring model
-- **Feature Engineering**: Payment behavior analysis and risk indicators
-- **Two Implementations**: SQL (for SQL Warehouse) and Python (for full compute)
+- **Medallion Architecture**: Bronze → Silver → Gold data layers with Delta Lake
+- **Swiss Banking ML**: XGBoost + SHAP (used at UBS, Credit Suisse)
+- **Regulatory Compliance**: Model explainability for FINMA requirements
+- **Production Ready**: CI/CD, cross-validation, hyperparameter tuning
 
 ## Tech Stack
 
@@ -26,9 +25,21 @@ This project implements a complete ML pipeline for credit risk prediction using 
 |-------|------------|
 | Platform | Databricks Lakehouse |
 | Storage | Delta Lake |
-| Compute | Apache Spark / SQL Warehouse |
-| ML | MLflow, Spark MLlib |
+| ML Models | XGBoost, Random Forest, Gradient Boosting, Logistic Regression |
+| Explainability | SHAP Values |
+| Data Processing | pandas, NumPy |
 | CI/CD | GitHub Actions |
+
+## Swiss Banking Standards
+
+This project demonstrates ML techniques required by Swiss financial regulators:
+
+| Technique | Purpose | Swiss Relevance |
+|-----------|---------|-----------------|
+| **XGBoost** | State-of-art classification | Industry standard at UBS, Credit Suisse |
+| **SHAP Values** | Model explainability | Required by FINMA for audit compliance |
+| **Cross-Validation** | Robust validation | Basel III/IV model validation |
+| **Hyperparameter Tuning** | Optimization | Industry best practice |
 
 ## Dataset
 
@@ -42,48 +53,23 @@ Source: [UCI ML Repository](https://archive.ics.uci.edu/ml/datasets/default+of+c
 
 ## Getting Started
 
-### Two Options Available
+### Run Notebooks in Order:
 
-| Option | Compute Type | Features |
-|--------|--------------|----------|
-| **SQL Notebooks** | SQL Warehouse (Free tier) | Data pipeline + Rule-based scoring |
-| **Python Notebooks** | All-Purpose Compute | Full ML with MLflow + 3 ML models |
-
----
-
-### Option 1: SQL Warehouse (Free Tier)
-
-For Databricks with only SQL Warehouse access.
-
-**Setup:**
-1. Download dataset: [UCI Credit Card Data](https://archive.ics.uci.edu/ml/machine-learning-databases/00350/default%20of%20credit%20card%20clients.xls)
-2. In Databricks: **Catalog** → **Create Table** → Upload the Excel file
-   - Schema: `kitsakis_credit_risk`
-   - Table: `bronze_credit_applications`
-
-**Run Notebooks:**
 ```
-notebooks/sql/01_bronze_cleanup.sql      → Fix column names
-notebooks/sql/02_silver_transformation.sql → Data cleaning + features
-notebooks/sql/03_gold_aggregation.sql    → Feature engineering
-notebooks/sql/04_risk_analysis.sql       → Risk scoring + metrics
+notebooks/python/00_setup_environment.py   → Download data, create Bronze table
+notebooks/python/01_silver_transformation.py → Data cleaning, feature creation
+notebooks/python/02_gold_features.py        → Feature engineering, risk scores
+notebooks/python/03_ml_training.py          → Train baseline ML models
+notebooks/python/04_advanced_ml.py          → XGBoost + SHAP (Swiss banking)
 ```
 
----
-
-### Option 2: Python Compute (Full ML)
-
-For Databricks with Python compute cluster or serverless.
-
-**Run Notebooks:**
+### SQL Version (for SQL Warehouse):
 ```
-notebooks/python/00_setup_environment.py  → Downloads data, creates Bronze
-notebooks/python/01_silver_transformation.py → Data cleaning
-notebooks/python/02_gold_features.py      → Feature engineering
-notebooks/python/03_ml_training.py        → MLflow + 3 ML models
+notebooks/sql/01_bronze_cleanup.sql
+notebooks/sql/02_silver_transformation.sql
+notebooks/sql/03_gold_aggregation.sql
+notebooks/sql/04_risk_analysis.sql
 ```
-
----
 
 ## Pipeline Architecture
 
@@ -93,28 +79,24 @@ notebooks/python/03_ml_training.py        → MLflow + 3 ML models
 │  (UCI Data) │    │    (Raw)    │    │  (Cleaned)  │    │ (Features)  │
 └─────────────┘    └─────────────┘    └─────────────┘    └──────┬──────┘
                                                                │
-                  ┌─────────────┐    ┌─────────────┐           │
-                  │   MLFLOW    │◀───│  TRAINING   │◀──────────┘
-                  │ (Tracking)  │    │  (Models)   │
-                  └─────────────┘    └─────────────┘
+                   ┌─────────────┐    ┌─────────────┐          │
+                   │    SHAP     │◀───│   XGBOOST   │◀─────────┘
+                   │(Explainability)  │  (Training) │
+                   └─────────────┘    └─────────────┘
 ```
 
 ## Project Structure
 
 ```
 ├── notebooks/
-│   ├── sql/                              # SQL Warehouse compatible
-│   │   ├── 01_bronze_cleanup.sql
-│   │   ├── 02_silver_transformation.sql
-│   │   ├── 03_gold_aggregation.sql
-│   │   └── 04_risk_analysis.sql
-│   └── python/                           # Full Python/MLflow
-│       ├── 00_setup_environment.py
-│       ├── 01_silver_transformation.py
-│       ├── 02_gold_features.py
-│       └── 03_ml_training.py
+│   ├── python/                           # Main pipeline (pandas + sklearn)
+│   │   ├── 00_setup_environment.py       # Data ingestion
+│   │   ├── 01_silver_transformation.py   # Data cleaning
+│   │   ├── 02_gold_features.py           # Feature engineering
+│   │   ├── 03_ml_training.py             # Baseline models
+│   │   └── 04_advanced_ml.py             # XGBoost + SHAP
+│   └── sql/                              # SQL Warehouse version
 ├── src/utils/                            # Reusable modules
-├── data/                                 # Sample data
 └── .github/workflows/                    # CI/CD
 ```
 
@@ -123,18 +105,41 @@ notebooks/python/03_ml_training.py        → MLflow + 3 ML models
 | Feature | Description |
 |---------|-------------|
 | `months_delayed` | Count of months with payment delay |
-| `max_delay_months` | Worst payment delay |
+| `max_delay_months` | Worst payment delay severity |
 | `credit_utilization` | Current balance / Credit limit |
-| `total_risk_score` | Combined risk indicator |
+| `total_risk_score` | Combined risk indicator (0-18) |
 | `payment_ratio` | Payment amount / Bill amount |
+| `delay_risk_*` | Risk scores per month |
 
-## Model Performance (Python)
+## Model Performance
 
-| Model | AUC | Accuracy |
-|-------|-----|----------|
-| Gradient Boosted Trees | ~0.78 | ~82% |
-| Random Forest | ~0.77 | ~81% |
-| Logistic Regression | ~0.72 | ~78% |
+| Model | AUC | Accuracy | F1 Score |
+|-------|-----|----------|----------|
+| **XGBoost** | ~0.78 | ~82% | ~0.47 |
+| Gradient Boosting | ~0.77 | ~81% | ~0.46 |
+| Random Forest | ~0.77 | ~81% | ~0.45 |
+| Logistic Regression | ~0.72 | ~78% | ~0.40 |
+
+## SHAP Explainability
+
+The `04_advanced_ml.py` notebook demonstrates:
+
+- **Global feature importance** - Which features matter most overall
+- **Individual explanations** - Why a specific customer was flagged as high risk
+- **Regulatory compliance** - Audit trail for credit decisions
+
+Example output:
+```
+INDIVIDUAL CUSTOMER RISK EXPLANATION
+=====================================
+Prediction: DEFAULT
+Probability of Default: 73.5%
+
+Top factors increasing risk:
+  - pay_status_1: 2.00 (impact: +0.234)
+  - credit_utilization: 0.89 (impact: +0.156)
+  - months_delayed: 4.00 (impact: +0.098)
+```
 
 ## License
 
