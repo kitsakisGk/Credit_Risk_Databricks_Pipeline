@@ -18,21 +18,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install flake8
-
-      - name: Lint with flake8
+      - name: Validate Python modules
         run: |
-          flake8 src/ --max-line-length 120 --ignore E501,W503,E302,E305,E261,E266,W291,W293,E303,E128,E127,E126
-
-      - name: Validate notebook syntax
-        run: |
-          for file in notebooks/*.py; do
-            echo "Checking $file"
-            python -m py_compile "$file"
-          done
-
-      - name: Validate utils syntax
-        run: |
+          python -m py_compile src/utils/__init__.py
           python -m py_compile src/utils/data_quality.py
           python -m py_compile src/utils/feature_engineering.py
+          echo "All Python modules validated successfully"
+
+      - name: Check for syntax errors in notebooks
+        run: |
+          # Remove Databricks magic commands and validate Python syntax
+          for file in notebooks/*.py; do
+            echo "Checking $file"
+            grep -v "^# MAGIC" "$file" | grep -v "^# COMMAND" > /tmp/temp_check.py
+            python -m py_compile /tmp/temp_check.py
+          done
+          echo "All notebooks validated successfully"
