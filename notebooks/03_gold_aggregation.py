@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # Gold Layer - Feature Engineering
 # MAGIC
-# MAGIC Create ML-ready features from Silver data.
+# MAGIC Create ML-ready features from Silver data for credit default prediction.
 
 # COMMAND ----------
 
@@ -26,6 +26,7 @@ print(f"Using schema: {SCHEMA_NAME}")
 
 silver_df = spark.table("silver_credit_applications")
 print(f"Silver records: {silver_df.count()}")
+silver_df.printSchema()
 
 # COMMAND ----------
 
@@ -34,15 +35,27 @@ print(f"Silver records: {silver_df.count()}")
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col, when, log, current_timestamp
-from pyspark.sql.window import Window
+from pyspark.sql.functions import col, when, log, current_timestamp, greatest, least, abs as spark_abs
 
 # Create features
 features_df = (
     silver_df
-    # Payment features
-    .withColumn("credit_per_month", col("credit_amount") / col("duration_months"))
-    .withColumn("log_credit_amount", log(col("credit_amount") + 1))
+    # Credit utilization features
+    .withColumn("avg_bill_amount",
+        (col("bill_amt_1") + col("bill_amt_2") + col("bill_amt_3") +
+         col("bill_amt_4") + col("bill_amt_5") + col("bill_amt_6")) / 6)
+    .withColumn("avg_payment_amount",
+        (col("pay_amt_1") + col("pay_amt_2") + col("pay_amt_3") +
+         col("pay_amt_4") + col("pay_amt_5") + col("pay_amt_6")) / 6)
+    .withColumn("credit_utilization",
+        when(col("credit_limit") > 0, col("bill_amt_1") / col("credit_limit")).otherwise(0))
+    .withColumn("log_credit_limit", log(col("credit_limit") + 1))
+
+    # Payment behavior features
+    .withColumn("payment_ratio",
+        when(col("bill_amt_1") > 0, col("pay_amt_1") / col("bill_amt_1")).otherwise(1))
+    .withColumn("pays_full_balance",
+        when(col("pay_amt_1") >= col("bill_amt_1"), 1).otherwise(0))
 
     # Age features
     .withColumn("age_group",
@@ -53,19 +66,15 @@ features_df = (
         .otherwise("elderly"))
     .withColumn("is_young_borrower", when(col("age") < 30, 1).otherwise(0))
 
-    # Credit amount bucket
+    # Credit limit buckets
     .withColumn("credit_bucket",
-        when(col("credit_amount") < 2500, "low")
-        .when(col("credit_amount") < 5000, "medium")
-        .when(col("credit_amount") < 10000, "high")
+        when(col("credit_limit") < 50000, "low")
+        .when(col("credit_limit") < 150000, "medium")
+        .when(col("credit_limit") < 300000, "high")
         .otherwise("very_high"))
-
-    # Duration features
-    .withColumn("is_short_term", when(col("duration_months") <= 12, 1).otherwise(0))
-    .withColumn("is_long_term", when(col("duration_months") > 36, 1).otherwise(0))
 )
 
-print("✓ Basic features created")
+print("Basic features created")
 
 # COMMAND ----------
 
@@ -74,47 +83,53 @@ print("✓ Basic features created")
 
 # COMMAND ----------
 
-# Create risk indicators based on domain knowledge
+# Create risk indicators based on payment history
 risk_df = (
     features_df
-    # Checking account risk
-    .withColumn("checking_risk",
-        when(col("checking_status") == "A11", 3)  # negative balance
-        .when(col("checking_status") == "A12", 2)  # 0-200
-        .when(col("checking_status") == "A13", 1)  # 200+
-        .when(col("checking_status") == "A14", 0)  # no account
+    # Payment delay risk (higher delay status = higher risk)
+    .withColumn("delay_risk_1",
+        when(col("pay_status_1") <= 0, 0)
+        .when(col("pay_status_1") == 1, 1)
+        .when(col("pay_status_1") == 2, 2)
+        .otherwise(3))
+    .withColumn("delay_risk_2",
+        when(col("pay_status_2") <= 0, 0)
+        .when(col("pay_status_2") == 1, 1)
+        .when(col("pay_status_2") == 2, 2)
+        .otherwise(3))
+    .withColumn("delay_risk_3",
+        when(col("pay_status_3") <= 0, 0)
+        .when(col("pay_status_3") == 1, 1)
+        .when(col("pay_status_3") == 2, 2)
+        .otherwise(3))
+
+    # Education risk (higher education typically = lower risk)
+    .withColumn("education_risk",
+        when(col("education") == "graduate_school", 0)
+        .when(col("education") == "university", 1)
+        .when(col("education") == "high_school", 2)
+        .otherwise(3))
+
+    # Marital status risk factor
+    .withColumn("marital_risk",
+        when(col("marital_status") == "married", 0)
+        .when(col("marital_status") == "single", 1)
         .otherwise(2))
 
-    # Savings risk
-    .withColumn("savings_risk",
-        when(col("savings_status") == "A65", 4)  # unknown
-        .when(col("savings_status") == "A61", 3)  # < 100
-        .when(col("savings_status") == "A62", 2)  # 100-500
-        .when(col("savings_status") == "A63", 1)  # 500-1000
-        .otherwise(0))
-
-    # Employment risk
-    .withColumn("employment_risk",
-        when(col("employment_duration") == "A71", 4)  # unemployed
-        .when(col("employment_duration") == "A72", 3)  # < 1 year
-        .when(col("employment_duration") == "A73", 2)  # 1-4 years
-        .when(col("employment_duration") == "A74", 1)  # 4-7 years
-        .otherwise(0))
-
-    # Credit history risk
-    .withColumn("history_risk",
-        when(col("credit_history") == "A34", 4)  # critical
-        .when(col("credit_history") == "A33", 3)  # delay
-        .when(col("credit_history") == "A32", 1)  # existing paid
-        .otherwise(0))
+    # Credit utilization risk
+    .withColumn("utilization_risk",
+        when(col("credit_utilization") < 0.3, 0)
+        .when(col("credit_utilization") < 0.5, 1)
+        .when(col("credit_utilization") < 0.8, 2)
+        .otherwise(3))
 
     # Combined risk score
     .withColumn("total_risk_score",
-        col("checking_risk") + col("savings_risk") +
-        col("employment_risk") + col("history_risk"))
+        col("delay_risk_1") + col("delay_risk_2") + col("delay_risk_3") +
+        col("education_risk") + col("marital_risk") + col("utilization_risk"))
 )
 
-print("✓ Risk scores created")
+print("Risk scores created")
 
 # COMMAND ----------
 
@@ -123,16 +138,12 @@ print("✓ Risk scores created")
 
 # COMMAND ----------
 
-# Select final features
-gold_df = (
-    risk_df
-    .withColumn("_gold_timestamp", current_timestamp())
-)
+# Add timestamp and save as Gold table
+gold_df = risk_df.withColumn("_gold_timestamp", current_timestamp())
 
-# Save as Gold table
 gold_df.write.format("delta").mode("overwrite").saveAsTable("gold_credit_features")
 
-print(f"✓ Gold table created: {gold_df.count()} records")
+print(f"Gold table created: {gold_df.count()} records")
 
 # COMMAND ----------
 
@@ -144,12 +155,13 @@ print(f"✓ Gold table created: {gold_df.count()} records")
 # Show feature statistics
 spark.sql("""
     SELECT
-        ROUND(AVG(credit_amount), 2) as avg_credit,
+        ROUND(AVG(credit_limit), 2) as avg_credit_limit,
         ROUND(AVG(age), 1) as avg_age,
-        ROUND(AVG(duration_months), 1) as avg_duration,
+        ROUND(AVG(credit_utilization), 3) as avg_utilization,
         ROUND(AVG(total_risk_score), 2) as avg_risk_score,
-        SUM(CASE WHEN credit_risk = 1 THEN 1 ELSE 0 END) as defaults,
-        COUNT(*) as total
+        SUM(CASE WHEN default_payment = 1 THEN 1 ELSE 0 END) as defaults,
+        COUNT(*) as total,
+        ROUND(100.0 * SUM(default_payment) / COUNT(*), 2) as default_rate_pct
     FROM gold_credit_features
 """).show()
 
@@ -168,7 +180,7 @@ spark.sql("""
             ELSE 'High Risk'
         END as risk_category,
         COUNT(*) as count,
-        ROUND(100.0 * SUM(credit_risk) / COUNT(*), 1) as default_rate_pct
+        ROUND(100.0 * SUM(default_payment) / COUNT(*), 1) as default_rate_pct
     FROM gold_credit_features
     GROUP BY 1
     ORDER BY 1
@@ -177,10 +189,28 @@ spark.sql("""
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Default Rate by Demographics
+
+# COMMAND ----------
+
+# By education
+spark.sql("""
+    SELECT
+        education,
+        COUNT(*) as count,
+        ROUND(100.0 * SUM(default_payment) / COUNT(*), 1) as default_rate_pct
+    FROM gold_credit_features
+    GROUP BY education
+    ORDER BY default_rate_pct DESC
+""").show()
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Summary
 # MAGIC
-# MAGIC ✅ Feature engineering complete
-# MAGIC ✅ Risk scores calculated
-# MAGIC ✅ Gold table created
+# MAGIC - Feature engineering complete
+# MAGIC - Risk scores calculated based on payment history and demographics
+# MAGIC - Gold table created with 30,000 records
 # MAGIC
 # MAGIC **Next:** Run `04_ml_training`

@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # Silver Layer - Data Cleaning & Transformation
 # MAGIC
-# MAGIC Clean, validate, and transform raw data into analysis-ready format.
+# MAGIC Clean, validate, and transform raw credit card data into analysis-ready format.
 
 # COMMAND ----------
 
@@ -25,55 +25,18 @@ print(f"Using schema: {SCHEMA_NAME}")
 # COMMAND ----------
 
 bronze_df = spark.table("bronze_credit_applications")
-print(f"Bronze records: {bronze_df.count()}")
+print(f"Bronze records: {bronze_df.count():,}")
 bronze_df.show(5)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Data Quality Assessment
+# MAGIC ## Data Exploration
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col, when, sum as spark_sum, count
-
-# Check for nulls
-null_counts = bronze_df.select([
-    spark_sum(when(col(c).isNull(), 1).otherwise(0)).alias(c)
-    for c in bronze_df.columns if not c.startswith("_")
-])
-
-print("=== Null Counts per Column ===")
-null_counts.show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Type Casting
-
-# COMMAND ----------
-
-from pyspark.sql.functions import col, when, current_timestamp
-from pyspark.sql.types import IntegerType, DoubleType
-
-# Cast to proper types
-typed_df = (
-    bronze_df
-    .withColumn("duration_months", col("duration_months").cast(IntegerType()))
-    .withColumn("credit_amount", col("credit_amount").cast(DoubleType()))
-    .withColumn("installment_rate", col("installment_rate").cast(IntegerType()))
-    .withColumn("residence_duration", col("residence_duration").cast(IntegerType()))
-    .withColumn("age", col("age").cast(IntegerType()))
-    .withColumn("existing_credits", col("existing_credits").cast(IntegerType()))
-    .withColumn("num_dependents", col("num_dependents").cast(IntegerType()))
-    # Convert target: 1 = Good (0), 2 = Bad (1)
-    .withColumn("credit_risk",
-                when(col("credit_risk") == 1, 0)
-                .when(col("credit_risk") == 2, 1)
-                .otherwise(None).cast(IntegerType()))
-)
-
-print("✓ Type casting complete")
+# Check data types
+bronze_df.printSchema()
 
 # COMMAND ----------
 
@@ -82,59 +45,30 @@ print("✓ Type casting complete")
 
 # COMMAND ----------
 
-# Decode codes to meaningful labels
+from pyspark.sql.functions import col, when, current_timestamp
+
+# Decode categorical variables to meaningful labels
 decoded_df = (
-    typed_df
-    # Checking account status
-    .withColumn("checking_status_decoded",
-        when(col("checking_status") == "A11", "< 0 DM")
-        .when(col("checking_status") == "A12", "0-200 DM")
-        .when(col("checking_status") == "A13", ">= 200 DM")
-        .when(col("checking_status") == "A14", "no checking account")
+    bronze_df
+    # Gender: 1=male, 2=female
+    .withColumn("gender_decoded",
+        when(col("gender") == 1, "male")
+        .when(col("gender") == 2, "female")
         .otherwise("unknown"))
 
-    # Credit history
-    .withColumn("credit_history_decoded",
-        when(col("credit_history") == "A30", "no credits/all paid")
-        .when(col("credit_history") == "A31", "all credits paid at this bank")
-        .when(col("credit_history") == "A32", "existing credits paid till now")
-        .when(col("credit_history") == "A33", "delay in past payments")
-        .when(col("credit_history") == "A34", "critical account")
+    # Education: 1=graduate school, 2=university, 3=high school, 4=others
+    .withColumn("education_decoded",
+        when(col("education") == 1, "graduate_school")
+        .when(col("education") == 2, "university")
+        .when(col("education") == 3, "high_school")
+        .when(col("education") == 4, "others")
         .otherwise("unknown"))
 
-    # Purpose
-    .withColumn("purpose_decoded",
-        when(col("purpose") == "A40", "car (new)")
-        .when(col("purpose") == "A41", "car (used)")
-        .when(col("purpose") == "A42", "furniture/equipment")
-        .when(col("purpose") == "A43", "radio/television")
-        .when(col("purpose") == "A44", "domestic appliances")
-        .when(col("purpose") == "A45", "repairs")
-        .when(col("purpose") == "A46", "education")
-        .when(col("purpose") == "A48", "retraining")
-        .when(col("purpose") == "A49", "business")
-        .otherwise("other"))
-
-    # Employment duration
-    .withColumn("employment_decoded",
-        when(col("employment_duration") == "A71", "unemployed")
-        .when(col("employment_duration") == "A72", "< 1 year")
-        .when(col("employment_duration") == "A73", "1-4 years")
-        .when(col("employment_duration") == "A74", "4-7 years")
-        .when(col("employment_duration") == "A75", ">= 7 years")
-        .otherwise("unknown"))
-
-    # Housing
-    .withColumn("housing_decoded",
-        when(col("housing") == "A151", "rent")
-        .when(col("housing") == "A152", "own")
-        .when(col("housing") == "A153", "for free")
-        .otherwise("unknown"))
-
-    # Gender
-    .withColumn("gender",
-        when(col("personal_status").isin(["A91", "A93", "A94"]), "male")
-        .when(col("personal_status") == "A92", "female")
+    # Marital status: 1=married, 2=single, 3=others
+    .withColumn("marital_status_decoded",
+        when(col("marital_status") == 1, "married")
+        .when(col("marital_status") == 2, "single")
+        .when(col("marital_status") == 3, "others")
         .otherwise("unknown"))
 )
 
@@ -147,17 +81,17 @@ print("✓ Categorical values decoded")
 
 # COMMAND ----------
 
+from pyspark.sql.functions import sum as spark_sum
+
 # Add quality flags
 quality_df = (
     decoded_df
     .withColumn("_dq_valid_age", (col("age") >= 18) & (col("age") <= 100))
-    .withColumn("_dq_valid_amount", col("credit_amount") > 0)
-    .withColumn("_dq_valid_duration", col("duration_months") > 0)
-    .withColumn("_dq_valid_target", col("credit_risk").isNotNull())
+    .withColumn("_dq_valid_credit_limit", col("credit_limit") > 0)
+    .withColumn("_dq_valid_target", col("default_payment").isin([0, 1]))
     .withColumn("_dq_passed",
         col("_dq_valid_age") &
-        col("_dq_valid_amount") &
-        col("_dq_valid_duration") &
+        col("_dq_valid_credit_limit") &
         col("_dq_valid_target"))
 )
 
@@ -168,12 +102,86 @@ print(f"""
 ╔══════════════════════════════════════╗
 ║       DATA QUALITY REPORT            ║
 ╠══════════════════════════════════════╣
-║ Total Records:    {total:>6}              ║
-║ Passed Checks:    {passed:>6}              ║
-║ Failed Checks:    {total-passed:>6}              ║
-║ Pass Rate:        {100*passed/total:>5.1f}%             ║
+║ Total Records:    {total:>6,}             ║
+║ Passed Checks:    {passed:>6,}             ║
+║ Failed Checks:    {total-passed:>6,}             ║
+║ Pass Rate:        {100*passed/total:>5.1f}%            ║
 ╚══════════════════════════════════════╝
 """)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Create Payment Behavior Features
+
+# COMMAND ----------
+
+# Create features for payment behavior
+# pay_status: -1=pay duly, 1=payment delay 1 month, 2=delay 2 months, etc.
+
+features_df = (
+    quality_df
+    .filter(col("_dq_passed") == True)
+
+    # Count months with delayed payment (pay_status > 0)
+    .withColumn("months_delayed",
+        (when(col("pay_status_sep") > 0, 1).otherwise(0) +
+         when(col("pay_status_aug") > 0, 1).otherwise(0) +
+         when(col("pay_status_jul") > 0, 1).otherwise(0) +
+         when(col("pay_status_jun") > 0, 1).otherwise(0) +
+         when(col("pay_status_may") > 0, 1).otherwise(0) +
+         when(col("pay_status_apr") > 0, 1).otherwise(0)))
+
+    # Max delay severity (worst payment status)
+    .withColumn("max_delay_months",
+        greatest(
+            col("pay_status_sep"), col("pay_status_aug"), col("pay_status_jul"),
+            col("pay_status_jun"), col("pay_status_may"), col("pay_status_apr")
+        ))
+
+    # Total bill amount
+    .withColumn("total_bill_amt",
+        col("bill_amt_sep") + col("bill_amt_aug") + col("bill_amt_jul") +
+        col("bill_amt_jun") + col("bill_amt_may") + col("bill_amt_apr"))
+
+    # Total payment amount
+    .withColumn("total_pay_amt",
+        col("pay_amt_sep") + col("pay_amt_aug") + col("pay_amt_jul") +
+        col("pay_amt_jun") + col("pay_amt_may") + col("pay_amt_apr"))
+
+    # Add silver timestamp
+    .withColumn("_silver_timestamp", current_timestamp())
+)
+
+# Need to import greatest
+from pyspark.sql.functions import greatest
+
+# Re-run with greatest imported
+features_df = (
+    quality_df
+    .filter(col("_dq_passed") == True)
+    .withColumn("months_delayed",
+        (when(col("pay_status_sep") > 0, 1).otherwise(0) +
+         when(col("pay_status_aug") > 0, 1).otherwise(0) +
+         when(col("pay_status_jul") > 0, 1).otherwise(0) +
+         when(col("pay_status_jun") > 0, 1).otherwise(0) +
+         when(col("pay_status_may") > 0, 1).otherwise(0) +
+         when(col("pay_status_apr") > 0, 1).otherwise(0)))
+    .withColumn("max_delay_months",
+        greatest(
+            col("pay_status_sep"), col("pay_status_aug"), col("pay_status_jul"),
+            col("pay_status_jun"), col("pay_status_may"), col("pay_status_apr")
+        ))
+    .withColumn("total_bill_amt",
+        col("bill_amt_sep") + col("bill_amt_aug") + col("bill_amt_jul") +
+        col("bill_amt_jun") + col("bill_amt_may") + col("bill_amt_apr"))
+    .withColumn("total_pay_amt",
+        col("pay_amt_sep") + col("pay_amt_aug") + col("pay_amt_jul") +
+        col("pay_amt_jun") + col("pay_amt_may") + col("pay_amt_apr"))
+    .withColumn("_silver_timestamp", current_timestamp())
+)
+
+print("✓ Payment behavior features created")
 
 # COMMAND ----------
 
@@ -182,17 +190,10 @@ print(f"""
 
 # COMMAND ----------
 
-# Keep only good records
-silver_df = (
-    quality_df
-    .filter(col("_dq_passed") == True)
-    .withColumn("_silver_timestamp", current_timestamp())
-)
-
 # Save as Silver table
-silver_df.write.format("delta").mode("overwrite").saveAsTable("silver_credit_applications")
+features_df.write.format("delta").mode("overwrite").saveAsTable("silver_credit_applications")
 
-print(f"✓ Silver table created: {silver_df.count()} records")
+print(f"✓ Silver table created: {features_df.count():,} records")
 
 # COMMAND ----------
 
@@ -201,11 +202,10 @@ print(f"✓ Silver table created: {silver_df.count()} records")
 
 # COMMAND ----------
 
-# Show sample
+# Show sample with new features
 spark.table("silver_credit_applications").select(
-    "age", "credit_amount", "duration_months",
-    "checking_status_decoded", "purpose_decoded",
-    "credit_risk"
+    "id", "credit_limit", "age", "gender_decoded", "education_decoded",
+    "months_delayed", "max_delay_months", "default_payment"
 ).show(10)
 
 # COMMAND ----------
@@ -217,12 +217,13 @@ spark.table("silver_credit_applications").select(
 
 spark.sql("""
     SELECT
-        credit_risk,
-        CASE WHEN credit_risk = 0 THEN 'Good Credit' ELSE 'Bad Credit' END as label,
-        COUNT(*) as count
+        default_payment,
+        CASE WHEN default_payment = 0 THEN 'No Default' ELSE 'Default' END as label,
+        COUNT(*) as count,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 1) as percentage
     FROM silver_credit_applications
-    GROUP BY credit_risk
-    ORDER BY credit_risk
+    GROUP BY default_payment
+    ORDER BY default_payment
 """).show()
 
 # COMMAND ----------
@@ -230,9 +231,9 @@ spark.sql("""
 # MAGIC %md
 # MAGIC ## Summary
 # MAGIC
-# MAGIC ✅ Type casting applied
 # MAGIC ✅ Categorical values decoded
 # MAGIC ✅ Data quality validated
+# MAGIC ✅ Payment behavior features created
 # MAGIC ✅ Silver table created
 # MAGIC
 # MAGIC **Next:** Run `03_gold_aggregation`
