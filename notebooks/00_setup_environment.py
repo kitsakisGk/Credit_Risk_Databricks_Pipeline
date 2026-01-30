@@ -117,17 +117,6 @@ print(f"✓ Bronze table created: {SCHEMA_NAME}.bronze_credit_applications")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Store Configuration
-
-# COMMAND ----------
-
-# Store config in spark conf for access in other notebooks
-spark.conf.set("pipeline.schema", SCHEMA_NAME)
-spark.conf.set("pipeline.experiment_path", EXPERIMENT_PATH)
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## Verify Setup
 
 # COMMAND ----------
