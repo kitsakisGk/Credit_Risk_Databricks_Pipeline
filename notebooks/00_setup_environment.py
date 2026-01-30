@@ -12,16 +12,14 @@
 
 # COMMAND ----------
 
-# Get username for unique naming
+# Get username for MLflow path
 username = spark.sql("SELECT current_user()").first()[0]
-username_prefix = username.split("@")[0].replace(".", "_").replace("-", "_")
 
-# Project configuration
-PROJECT_NAME = "credit_risk"
-SCHEMA_NAME = f"{username_prefix}_{PROJECT_NAME}"
+# Project configuration - clean schema name
+SCHEMA_NAME = "kitsakis_credit_risk"
 
 # MLflow experiment
-EXPERIMENT_PATH = f"/Users/{username}/{PROJECT_NAME}_experiment"
+EXPERIMENT_PATH = f"/Users/{username}/credit_risk_experiment"
 
 print(f"""
 ╔══════════════════════════════════════════════════════════════╗

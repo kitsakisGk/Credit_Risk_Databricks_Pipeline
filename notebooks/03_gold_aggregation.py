@@ -11,10 +11,8 @@
 
 # COMMAND ----------
 
-# Get schema name
-username = spark.sql("SELECT current_user()").first()[0]
-username_prefix = username.split("@")[0].replace(".", "_").replace("-", "_")
-SCHEMA_NAME = f"{username_prefix}_credit_risk"
+# Schema name
+SCHEMA_NAME = "kitsakis_credit_risk"
 
 spark.sql(f"USE {SCHEMA_NAME}")
 print(f"Using schema: {SCHEMA_NAME}")
