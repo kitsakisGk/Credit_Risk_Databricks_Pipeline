@@ -5,8 +5,6 @@
 # MAGIC Download Taiwan Credit Card Default dataset and create Bronze table.
 # MAGIC
 # MAGIC **Dataset:** UCI Taiwan Credit Card Default (30,000 records)
-# MAGIC
-# MAGIC **Requirements:** Databricks with Python compute (not SQL Warehouse)
 
 # COMMAND ----------
 
@@ -32,18 +30,27 @@ print(f"Using schema: {SCHEMA_NAME}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Download and Load Dataset
+# MAGIC ## Install Dependencies
+
+# COMMAND ----------
+
+%pip install openpyxl --quiet
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Download Dataset
 
 # COMMAND ----------
 
 import pandas as pd
+import numpy as np
 
 # Download directly from UCI repository
 print(f"Downloading from: {DATASET_URL}")
-pdf = pd.read_excel(DATASET_URL, header=1)
+df = pd.read_excel(DATASET_URL, header=1, engine='openpyxl')
 
-print(f"Downloaded {len(pdf)} records with {len(pdf.columns)} columns")
-print(f"Columns: {list(pdf.columns)}")
+print(f"Downloaded {len(df)} records with {len(df.columns)} columns")
 
 # COMMAND ----------
 
@@ -53,7 +60,7 @@ print(f"Columns: {list(pdf.columns)}")
 # COMMAND ----------
 
 # Rename columns to clean names
-pdf.columns = [
+df.columns = [
     'id', 'credit_limit', 'sex', 'education', 'marriage', 'age',
     'pay_status_1', 'pay_status_2', 'pay_status_3', 'pay_status_4', 'pay_status_5', 'pay_status_6',
     'bill_amt_1', 'bill_amt_2', 'bill_amt_3', 'bill_amt_4', 'bill_amt_5', 'bill_amt_6',
@@ -61,62 +68,56 @@ pdf.columns = [
     'default_payment'
 ]
 
-print("Columns renamed successfully")
-pdf.head()
+print("Columns renamed:")
+print(df.columns.tolist())
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Create Bronze Table
+# MAGIC ## Data Overview
 
 # COMMAND ----------
 
-from pyspark.sql.functions import current_timestamp
+print(f"Shape: {df.shape}")
+print(f"\nData types:\n{df.dtypes}")
 
-# Convert to Spark DataFrame
-bronze_df = spark.createDataFrame(pdf)
+# COMMAND ----------
 
-# Add ingestion timestamp
-bronze_df = bronze_df.withColumn("_ingested_at", current_timestamp())
-
-# Save as Delta table
-bronze_df.write.format("delta").mode("overwrite").saveAsTable("bronze_credit_applications")
-
-print(f"Bronze table created: {bronze_df.count()} records")
+df.head(10)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Verify Data
+# MAGIC ## Basic Statistics
 
 # COMMAND ----------
 
-# Quick verification
+df.describe()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Save Bronze Table
+
+# COMMAND ----------
+
+# Drop old table if exists and save new one
+spark.sql("DROP TABLE IF EXISTS bronze_credit_applications")
+
+# Convert to Spark DataFrame and save
+spark_df = spark.createDataFrame(df)
+spark_df.write.format("delta").mode("overwrite").saveAsTable("bronze_credit_applications")
+
+print(f"Bronze table created: {len(df)} records")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Verify
+
+# COMMAND ----------
+
 spark.sql("SELECT COUNT(*) as total FROM bronze_credit_applications").show()
-
-# COMMAND ----------
-
-# Sample data
-spark.sql("SELECT * FROM bronze_credit_applications LIMIT 5").show()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Data Summary
-
-# COMMAND ----------
-
-spark.sql("""
-    SELECT
-        MIN(credit_limit) as min_credit,
-        MAX(credit_limit) as max_credit,
-        ROUND(AVG(credit_limit), 2) as avg_credit,
-        MIN(age) as min_age,
-        MAX(age) as max_age,
-        SUM(default_payment) as total_defaults,
-        ROUND(100.0 * SUM(default_payment) / COUNT(*), 2) as default_rate_pct
-    FROM bronze_credit_applications
-""").show()
 
 # COMMAND ----------
 
@@ -124,7 +125,7 @@ spark.sql("""
 # MAGIC ## Summary
 # MAGIC
 # MAGIC - Downloaded 30,000 credit card records from UCI repository
-# MAGIC - Created Bronze Delta table with raw data
-# MAGIC - Default rate: ~22%
+# MAGIC - Cleaned column names
+# MAGIC - Saved as Bronze Delta table
 # MAGIC
 # MAGIC **Next:** Run `01_silver_transformation`

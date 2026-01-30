@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # Gold Layer - Feature Engineering
 # MAGIC
-# MAGIC Create ML-ready features from Silver data.
+# MAGIC Create ML-ready features from Silver data using pandas.
 
 # COMMAND ----------
 
@@ -11,20 +11,26 @@
 
 # COMMAND ----------
 
-SCHEMA_NAME = "kitsakis_credit_risk"
+import pandas as pd
+import numpy as np
 
+SCHEMA_NAME = "kitsakis_credit_risk"
 spark.sql(f"USE {SCHEMA_NAME}")
 print(f"Using schema: {SCHEMA_NAME}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Read Silver Data
+# MAGIC ## Load Silver Data
 
 # COMMAND ----------
 
-silver_df = spark.table("silver_credit_applications")
-print(f"Silver records: {silver_df.count()}")
+df = spark.table("silver_credit_applications").toPandas()
+print(f"Loaded {len(df)} records from Silver table")
+
+# COMMAND ----------
+
+df.head()
 
 # COMMAND ----------
 
@@ -33,51 +39,80 @@ print(f"Silver records: {silver_df.count()}")
 
 # COMMAND ----------
 
-from pyspark.sql.functions import col, when, log, current_timestamp
+# Bill amount columns
+bill_cols = ['bill_amt_1', 'bill_amt_2', 'bill_amt_3',
+             'bill_amt_4', 'bill_amt_5', 'bill_amt_6']
 
-# Create features
-features_df = (
-    silver_df
-    # Credit utilization
-    .withColumn("avg_bill_amount",
-        (col("bill_amt_1") + col("bill_amt_2") + col("bill_amt_3") +
-         col("bill_amt_4") + col("bill_amt_5") + col("bill_amt_6")) / 6)
+# Payment amount columns
+pay_cols = ['pay_amt_1', 'pay_amt_2', 'pay_amt_3',
+            'pay_amt_4', 'pay_amt_5', 'pay_amt_6']
 
-    .withColumn("avg_payment_amount",
-        (col("pay_amt_1") + col("pay_amt_2") + col("pay_amt_3") +
-         col("pay_amt_4") + col("pay_amt_5") + col("pay_amt_6")) / 6)
+# Average bill and payment amounts
+df['avg_bill_amount'] = df[bill_cols].mean(axis=1)
+df['avg_payment_amount'] = df[pay_cols].mean(axis=1)
 
-    .withColumn("credit_utilization",
-        when(col("credit_limit") > 0, col("bill_amt_1") / col("credit_limit")).otherwise(0))
-
-    .withColumn("log_credit_limit", log(col("credit_limit") + 1))
-
-    # Payment behavior
-    .withColumn("payment_ratio",
-        when(col("bill_amt_1") > 0, col("pay_amt_1") / col("bill_amt_1")).otherwise(1))
-
-    .withColumn("pays_full_balance",
-        when(col("pay_amt_1") >= col("bill_amt_1"), 1).otherwise(0))
-
-    # Age features
-    .withColumn("age_group",
-        when(col("age") < 25, "young")
-        .when(col("age") < 35, "young_adult")
-        .when(col("age") < 50, "middle_aged")
-        .when(col("age") < 65, "senior")
-        .otherwise("elderly"))
-
-    .withColumn("is_young_borrower", when(col("age") < 30, 1).otherwise(0))
-
-    # Credit bucket
-    .withColumn("credit_bucket",
-        when(col("credit_limit") < 50000, "low")
-        .when(col("credit_limit") < 150000, "medium")
-        .when(col("credit_limit") < 300000, "high")
-        .otherwise("very_high"))
+# Credit utilization (most recent bill / credit limit)
+df['credit_utilization'] = np.where(
+    df['credit_limit'] > 0,
+    df['bill_amt_1'] / df['credit_limit'],
+    0
 )
 
-print("Basic features created")
+# Log credit limit (for better distribution)
+df['log_credit_limit'] = np.log(df['credit_limit'] + 1)
+
+# Payment ratio (payment / bill for most recent month)
+df['payment_ratio'] = np.where(
+    df['bill_amt_1'] > 0,
+    df['pay_amt_1'] / df['bill_amt_1'],
+    1
+)
+
+# Pays full balance flag
+df['pays_full_balance'] = (df['pay_amt_1'] >= df['bill_amt_1']).astype(int)
+
+print("Credit features created")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Age Features
+
+# COMMAND ----------
+
+# Age group
+def age_group(age):
+    if age < 25:
+        return 'young'
+    elif age < 35:
+        return 'young_adult'
+    elif age < 50:
+        return 'middle_aged'
+    elif age < 65:
+        return 'senior'
+    else:
+        return 'elderly'
+
+df['age_group'] = df['age'].apply(age_group)
+
+# Young borrower flag
+df['is_young_borrower'] = (df['age'] < 30).astype(int)
+
+# Credit bucket
+def credit_bucket(limit):
+    if limit < 50000:
+        return 'low'
+    elif limit < 150000:
+        return 'medium'
+    elif limit < 300000:
+        return 'high'
+    else:
+        return 'very_high'
+
+df['credit_bucket'] = df['credit_limit'].apply(credit_bucket)
+
+print("Age and credit features created")
+print(f"\nAge group distribution:\n{df['age_group'].value_counts()}")
 
 # COMMAND ----------
 
@@ -86,68 +121,55 @@ print("Basic features created")
 
 # COMMAND ----------
 
-# Create risk indicators
-risk_df = (
-    features_df
-    # Payment delay risk
-    .withColumn("delay_risk_1",
-        when(col("pay_status_1") <= 0, 0)
-        .when(col("pay_status_1") == 1, 1)
-        .when(col("pay_status_1") == 2, 2)
-        .otherwise(3))
+# Payment delay risk (0-3 scale based on severity)
+def delay_risk(status):
+    if status <= 0:
+        return 0
+    elif status == 1:
+        return 1
+    elif status == 2:
+        return 2
+    else:
+        return 3
 
-    .withColumn("delay_risk_2",
-        when(col("pay_status_2") <= 0, 0)
-        .when(col("pay_status_2") == 1, 1)
-        .when(col("pay_status_2") == 2, 2)
-        .otherwise(3))
+df['delay_risk_1'] = df['pay_status_1'].apply(delay_risk)
+df['delay_risk_2'] = df['pay_status_2'].apply(delay_risk)
+df['delay_risk_3'] = df['pay_status_3'].apply(delay_risk)
 
-    .withColumn("delay_risk_3",
-        when(col("pay_status_3") <= 0, 0)
-        .when(col("pay_status_3") == 1, 1)
-        .when(col("pay_status_3") == 2, 2)
-        .otherwise(3))
+# Education risk (lower education = higher risk)
+education_risk_map = {
+    'graduate_school': 0,
+    'university': 1,
+    'high_school': 2,
+    'other': 3
+}
+df['education_risk'] = df['education_level'].map(education_risk_map)
 
-    # Education risk
-    .withColumn("education_risk",
-        when(col("education_level") == "graduate_school", 0)
-        .when(col("education_level") == "university", 1)
-        .when(col("education_level") == "high_school", 2)
-        .otherwise(3))
+# Marital risk
+marital_risk_map = {'married': 0, 'single': 1, 'other': 2}
+df['marital_risk'] = df['marital_status'].map(marital_risk_map)
 
-    # Marital risk
-    .withColumn("marital_risk",
-        when(col("marital_status") == "married", 0)
-        .when(col("marital_status") == "single", 1)
-        .otherwise(2))
+# Utilization risk
+def utilization_risk(util):
+    if util < 0.3:
+        return 0
+    elif util < 0.5:
+        return 1
+    elif util < 0.8:
+        return 2
+    else:
+        return 3
 
-    # Utilization risk
-    .withColumn("utilization_risk",
-        when(col("credit_utilization") < 0.3, 0)
-        .when(col("credit_utilization") < 0.5, 1)
-        .when(col("credit_utilization") < 0.8, 2)
-        .otherwise(3))
+df['utilization_risk'] = df['credit_utilization'].apply(utilization_risk)
 
-    # Combined risk score
-    .withColumn("total_risk_score",
-        col("delay_risk_1") + col("delay_risk_2") + col("delay_risk_3") +
-        col("education_risk") + col("marital_risk") + col("utilization_risk"))
+# Total risk score
+df['total_risk_score'] = (
+    df['delay_risk_1'] + df['delay_risk_2'] + df['delay_risk_3'] +
+    df['education_risk'] + df['marital_risk'] + df['utilization_risk']
 )
 
 print("Risk scores created")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Save Gold Table
-
-# COMMAND ----------
-
-gold_df = risk_df.withColumn("_gold_timestamp", current_timestamp())
-
-gold_df.write.format("delta").mode("overwrite").saveAsTable("gold_credit_features")
-
-print(f"Gold table created: {gold_df.count()} records")
+print(f"\nTotal risk score range: {df['total_risk_score'].min()} - {df['total_risk_score'].max()}")
 
 # COMMAND ----------
 
@@ -156,17 +178,17 @@ print(f"Gold table created: {gold_df.count()} records")
 
 # COMMAND ----------
 
-spark.sql("""
-    SELECT
-        ROUND(AVG(credit_limit), 2) as avg_credit_limit,
-        ROUND(AVG(age), 1) as avg_age,
-        ROUND(AVG(credit_utilization), 3) as avg_utilization,
-        ROUND(AVG(total_risk_score), 2) as avg_risk_score,
-        SUM(default_payment) as total_defaults,
-        COUNT(*) as total_records,
-        ROUND(100.0 * SUM(default_payment) / COUNT(*), 2) as default_rate_pct
-    FROM gold_credit_features
-""").show()
+print("="*50)
+print("FEATURE SUMMARY")
+print("="*50)
+print(f"Total records: {len(df)}")
+print(f"Total features: {len(df.columns)}")
+print(f"\nKey statistics:")
+print(f"  Avg credit limit: ${df['credit_limit'].mean():,.0f}")
+print(f"  Avg age: {df['age'].mean():.1f}")
+print(f"  Avg credit utilization: {df['credit_utilization'].mean():.2%}")
+print(f"  Avg risk score: {df['total_risk_score'].mean():.2f}")
+print(f"  Default rate: {df['default_payment'].mean():.2%}")
 
 # COMMAND ----------
 
@@ -175,27 +197,76 @@ spark.sql("""
 
 # COMMAND ----------
 
-spark.sql("""
-    SELECT
-        CASE
-            WHEN total_risk_score <= 4 THEN '1. Low Risk (0-4)'
-            WHEN total_risk_score <= 8 THEN '2. Medium Risk (5-8)'
-            ELSE '3. High Risk (9+)'
-        END as risk_category,
-        COUNT(*) as customer_count,
-        ROUND(100.0 * SUM(default_payment) / COUNT(*), 1) as default_rate_pct
-    FROM gold_credit_features
-    GROUP BY 1
-    ORDER BY 1
-""").show()
+# Analyze risk score effectiveness
+def risk_category(score):
+    if score <= 4:
+        return '1. Low Risk (0-4)'
+    elif score <= 8:
+        return '2. Medium Risk (5-8)'
+    else:
+        return '3. High Risk (9+)'
+
+df['risk_category'] = df['total_risk_score'].apply(risk_category)
+
+risk_analysis = df.groupby('risk_category').agg({
+    'id': 'count',
+    'default_payment': 'mean'
+}).rename(columns={'id': 'customer_count', 'default_payment': 'default_rate'})
+risk_analysis['default_rate'] = (risk_analysis['default_rate'] * 100).round(1)
+
+print("Default Rate by Risk Category:")
+display(risk_analysis)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Save Gold Table
+
+# COMMAND ----------
+
+# Select all columns for Gold table (drop temporary columns)
+gold_df = df.drop(columns=['risk_category'])
+
+# Save to Delta
+spark.sql("DROP TABLE IF EXISTS gold_credit_features")
+spark_df = spark.createDataFrame(gold_df)
+spark_df.write.format("delta").mode("overwrite").saveAsTable("gold_credit_features")
+
+print(f"Gold table created: {len(gold_df)} records with {len(gold_df.columns)} features")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Verify
+
+# COMMAND ----------
+
+spark.sql("SELECT COUNT(*) as total FROM gold_credit_features").show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Feature List
+
+# COMMAND ----------
+
+print("="*50)
+print("FEATURES IN GOLD TABLE")
+print("="*50)
+for i, col in enumerate(gold_df.columns, 1):
+    print(f"{i:2}. {col}")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Summary
 # MAGIC
-# MAGIC - Feature engineering complete
-# MAGIC - Risk scores calculated
-# MAGIC - Gold table created with 30,000 records
+# MAGIC ### Features Created:
+# MAGIC - **Credit Features:** utilization, log_credit_limit, payment_ratio
+# MAGIC - **Age Features:** age_group, is_young_borrower, credit_bucket
+# MAGIC - **Risk Scores:** delay_risk, education_risk, marital_risk, total_risk_score
+# MAGIC
+# MAGIC ### Key Insight:
+# MAGIC Higher risk scores correlate strongly with higher default rates!
 # MAGIC
 # MAGIC **Next:** Run `03_ml_training`

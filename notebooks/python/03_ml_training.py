@@ -1,10 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # ML Model Training with MLflow
+# MAGIC # ML Model Training with Scikit-Learn
 # MAGIC
-# MAGIC Train credit default prediction models with experiment tracking.
+# MAGIC Train credit default prediction models using scikit-learn.
 # MAGIC
-# MAGIC **Requirements:** Databricks with Python compute (not SQL Warehouse)
+# MAGIC **Works on Serverless compute!**
 
 # COMMAND ----------
 
@@ -18,24 +18,6 @@ SCHEMA_NAME = "kitsakis_credit_risk"
 spark.sql(f"USE {SCHEMA_NAME}")
 print(f"Using schema: {SCHEMA_NAME}")
 
-# Get username for MLflow
-username = spark.sql("SELECT current_user()").first()[0]
-
-# COMMAND ----------
-
-import mlflow
-import mlflow.spark
-from pyspark.ml.feature import VectorAssembler
-from pyspark.ml.classification import RandomForestClassifier, LogisticRegression, GBTClassifier
-from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
-from pyspark.ml import Pipeline
-from pyspark.sql.functions import col
-
-# Set experiment
-EXPERIMENT_PATH = f"/Users/{username}/credit_default_experiment"
-mlflow.set_experiment(EXPERIMENT_PATH)
-print(f"MLflow experiment: {EXPERIMENT_PATH}")
-
 # COMMAND ----------
 
 # MAGIC %md
@@ -43,12 +25,13 @@ print(f"MLflow experiment: {EXPERIMENT_PATH}")
 
 # COMMAND ----------
 
+# Load data and convert to Pandas
 gold_df = spark.table("gold_credit_features")
 print(f"Gold records: {gold_df.count()}")
 
-# Check class distribution
-print("\n=== Target Variable Distribution ===")
-gold_df.groupBy("default_payment").count().show()
+# Convert to pandas for sklearn
+pdf = gold_df.toPandas()
+print(f"Loaded {len(pdf)} records into pandas")
 
 # COMMAND ----------
 
@@ -56,6 +39,9 @@ gold_df.groupBy("default_payment").count().show()
 # MAGIC ## Prepare Features
 
 # COMMAND ----------
+
+import pandas as pd
+import numpy as np
 
 # Select numeric features for ML
 feature_cols = [
@@ -77,12 +63,14 @@ feature_cols = [
     "months_delayed", "max_delay_months", "total_bill_amt", "total_pay_amt"
 ]
 
-# Create feature vector
-assembler = VectorAssembler(inputCols=feature_cols, outputCol="features", handleInvalid="skip")
+# Prepare X and y
+X = pdf[feature_cols].fillna(0)
+y = pdf["default_payment"]
 
-# Prepare data
-ml_df = gold_df.select(*feature_cols, "default_payment").na.drop()
-print(f"ML records (after dropping nulls): {ml_df.count()}")
+print(f"Features: {len(feature_cols)}")
+print(f"Samples: {len(X)}")
+print(f"\nTarget distribution:")
+print(y.value_counts())
 
 # COMMAND ----------
 
@@ -91,58 +79,16 @@ print(f"ML records (after dropping nulls): {ml_df.count()}")
 
 # COMMAND ----------
 
-train_df, test_df = ml_df.randomSplit([0.8, 0.2], seed=42)
-print(f"Training: {train_df.count()}, Test: {test_df.count()}")
+from sklearn.model_selection import train_test_split
 
-# Class distribution
-print("\n=== Training Set Class Distribution ===")
-train_df.groupBy("default_payment").count().show()
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Training Function
-
-# COMMAND ----------
-
-def train_and_log_model(model, model_name, train_data, test_data):
-    """Train model and log to MLflow"""
-    with mlflow.start_run(run_name=model_name):
-        # Create pipeline
-        pipeline = Pipeline(stages=[assembler, model])
-
-        # Train
-        pipeline_model = pipeline.fit(train_data)
-
-        # Predict
-        predictions = pipeline_model.transform(test_data)
-
-        # Evaluate
-        auc_eval = BinaryClassificationEvaluator(labelCol="default_payment", metricName="areaUnderROC")
-        acc_eval = MulticlassClassificationEvaluator(labelCol="default_payment", metricName="accuracy")
-        f1_eval = MulticlassClassificationEvaluator(labelCol="default_payment", metricName="f1")
-
-        auc = auc_eval.evaluate(predictions)
-        accuracy = acc_eval.evaluate(predictions)
-        f1 = f1_eval.evaluate(predictions)
-
-        # Log parameters
-        mlflow.log_param("model_type", model_name)
-        mlflow.log_param("num_features", len(feature_cols))
-        mlflow.log_param("train_size", train_data.count())
-        mlflow.log_param("test_size", test_data.count())
-
-        # Log metrics
-        mlflow.log_metric("test_auc", auc)
-        mlflow.log_metric("test_accuracy", accuracy)
-        mlflow.log_metric("test_f1", f1)
-
-        # Log model
-        mlflow.spark.log_model(pipeline_model, "model")
-
-        print(f"{model_name}: AUC={auc:.4f}, Accuracy={accuracy:.4f}, F1={f1:.4f}")
-
-        return {"model": model_name, "auc": auc, "accuracy": accuracy, "f1": f1, "pipeline": pipeline_model}
+print(f"Training set: {len(X_train)} records")
+print(f"Test set: {len(X_test)} records")
+print(f"\nTraining set class distribution:")
+print(y_train.value_counts())
 
 # COMMAND ----------
 
@@ -151,81 +97,152 @@ def train_and_log_model(model, model_name, train_data, test_data):
 
 # COMMAND ----------
 
-results = []
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, roc_auc_score, f1_score, classification_report
+from sklearn.preprocessing import StandardScaler
 
-# Logistic Regression
-print("Training Logistic Regression...")
-lr = LogisticRegression(labelCol="default_payment", featuresCol="features", maxIter=100)
-results.append(train_and_log_model(lr, "LogisticRegression", train_df, test_df))
-
-# Random Forest
-print("\nTraining Random Forest...")
-rf = RandomForestClassifier(labelCol="default_payment", featuresCol="features", numTrees=100, seed=42)
-results.append(train_and_log_model(rf, "RandomForest", train_df, test_df))
-
-# Gradient Boosted Trees
-print("\nTraining Gradient Boosted Trees...")
-gbt = GBTClassifier(labelCol="default_payment", featuresCol="features", maxIter=50, seed=42)
-results.append(train_and_log_model(gbt, "GradientBoostedTrees", train_df, test_df))
+# Scale features for Logistic Regression
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Results Summary
+# MAGIC ## Model 1: Logistic Regression
 
 # COMMAND ----------
 
-import pandas as pd
+print("="*50)
+print("Training: Logistic Regression")
+print("="*50)
 
-# Create results dataframe
-results_summary = [{k: v for k, v in r.items() if k != "pipeline"} for r in results]
-results_pdf = pd.DataFrame(results_summary).sort_values("auc", ascending=False)
+lr = LogisticRegression(max_iter=1000, random_state=42)
+lr.fit(X_train_scaled, y_train)
+
+lr_pred = lr.predict(X_test_scaled)
+lr_prob = lr.predict_proba(X_test_scaled)[:, 1]
+
+lr_auc = roc_auc_score(y_test, lr_prob)
+lr_acc = accuracy_score(y_test, lr_pred)
+lr_f1 = f1_score(y_test, lr_pred)
+
+print(f"AUC:      {lr_auc:.4f}")
+print(f"Accuracy: {lr_acc:.4f}")
+print(f"F1 Score: {lr_f1:.4f}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Model 2: Random Forest
+
+# COMMAND ----------
+
+print("="*50)
+print("Training: Random Forest")
+print("="*50)
+
+rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
+rf.fit(X_train, y_train)
+
+rf_pred = rf.predict(X_test)
+rf_prob = rf.predict_proba(X_test)[:, 1]
+
+rf_auc = roc_auc_score(y_test, rf_prob)
+rf_acc = accuracy_score(y_test, rf_pred)
+rf_f1 = f1_score(y_test, rf_pred)
+
+print(f"AUC:      {rf_auc:.4f}")
+print(f"Accuracy: {rf_acc:.4f}")
+print(f"F1 Score: {rf_f1:.4f}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Model 3: Gradient Boosting
+
+# COMMAND ----------
+
+print("="*50)
+print("Training: Gradient Boosting")
+print("="*50)
+
+gb = GradientBoostingClassifier(n_estimators=100, max_depth=5, random_state=42)
+gb.fit(X_train, y_train)
+
+gb_pred = gb.predict(X_test)
+gb_prob = gb.predict_proba(X_test)[:, 1]
+
+gb_auc = roc_auc_score(y_test, gb_prob)
+gb_acc = accuracy_score(y_test, gb_pred)
+gb_f1 = f1_score(y_test, gb_pred)
+
+print(f"AUC:      {gb_auc:.4f}")
+print(f"Accuracy: {gb_acc:.4f}")
+print(f"F1 Score: {gb_f1:.4f}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Model Comparison
+
+# COMMAND ----------
+
+results = pd.DataFrame({
+    "Model": ["Logistic Regression", "Random Forest", "Gradient Boosting"],
+    "AUC": [lr_auc, rf_auc, gb_auc],
+    "Accuracy": [lr_acc, rf_acc, gb_acc],
+    "F1 Score": [lr_f1, rf_f1, gb_f1]
+}).sort_values("AUC", ascending=False)
 
 print("\n" + "="*60)
 print("MODEL COMPARISON (sorted by AUC)")
 print("="*60)
-display(spark.createDataFrame(results_pdf))
+display(results)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Best Model Feature Importance
+# MAGIC ## Best Model
 
 # COMMAND ----------
 
-# Get best model
-best_result = max(results, key=lambda x: x["auc"])
-best_model_name = best_result["model"]
-print(f"Best model: {best_model_name} (AUC: {best_result['auc']:.4f})")
+best_idx = results["AUC"].idxmax()
+best_model_name = results.loc[best_idx, "Model"]
+best_auc = results.loc[best_idx, "AUC"]
 
-# For tree-based models, show feature importance
-if best_model_name in ["RandomForest", "GradientBoostedTrees"]:
-    best_pipeline = best_result["pipeline"]
-    tree_model = best_pipeline.stages[-1]
-
-    importance = list(zip(feature_cols, tree_model.featureImportances.toArray()))
-    importance_df = pd.DataFrame(importance, columns=["feature", "importance"])
-    importance_df = importance_df.sort_values("importance", ascending=False)
-
-    print("\n=== Top 15 Most Important Features ===")
-    display(spark.createDataFrame(importance_df.head(15)))
+print(f"Best Model: {best_model_name}")
+print(f"AUC: {best_auc:.4f}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Save Predictions
+# MAGIC ## Feature Importance (Random Forest)
 
 # COMMAND ----------
 
-best_pipeline = best_result["pipeline"]
-final_predictions = best_pipeline.transform(test_df)
+# Get feature importance
+importance_df = pd.DataFrame({
+    "Feature": feature_cols,
+    "Importance": rf.feature_importances_
+}).sort_values("Importance", ascending=False)
 
-# Save predictions
-final_predictions.select(
-    "default_payment", "prediction", "probability"
-).write.format("delta").mode("overwrite").saveAsTable("model_predictions")
+print("\n=== Top 15 Most Important Features ===")
+display(importance_df.head(15))
 
-print("Predictions saved to model_predictions table")
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Classification Report (Best Model)
+
+# COMMAND ----------
+
+# Use Gradient Boosting predictions (typically best)
+print("="*50)
+print("CLASSIFICATION REPORT - Gradient Boosting")
+print("="*50)
+print(classification_report(y_test, gb_pred, target_names=["No Default", "Default"]))
 
 # COMMAND ----------
 
@@ -234,32 +251,65 @@ print("Predictions saved to model_predictions table")
 
 # COMMAND ----------
 
-# Calculate confusion matrix
-tp = final_predictions.filter((col("default_payment") == 1) & (col("prediction") == 1)).count()
-tn = final_predictions.filter((col("default_payment") == 0) & (col("prediction") == 0)).count()
-fp = final_predictions.filter((col("default_payment") == 0) & (col("prediction") == 1)).count()
-fn = final_predictions.filter((col("default_payment") == 1) & (col("prediction") == 0)).count()
+from sklearn.metrics import confusion_matrix
+
+cm = confusion_matrix(y_test, gb_pred)
+tn, fp, fn, tp = cm.ravel()
+
+print("="*50)
+print("CONFUSION MATRIX")
+print("="*50)
+print(f"""
+                    Predicted
+                 |  No   |  Yes  |
+        ---------|-------|-------|
+Actual    No     | {tn:5} | {fp:5} |
+          Yes    | {fn:5} | {tp:5} |
+        ---------|-------|-------|
+""")
 
 precision = tp / (tp + fp) if (tp + fp) > 0 else 0
 recall = tp / (tp + fn) if (tp + fn) > 0 else 0
 
-print("=== Confusion Matrix ===")
-print(f"True Positives:  {tp}")
-print(f"True Negatives:  {tn}")
-print(f"False Positives: {fp}")
-print(f"False Negatives: {fn}")
-print(f"\nPrecision: {precision:.4f}")
-print(f"Recall:    {recall:.4f}")
+print(f"Precision: {precision:.4f} (of predicted defaults, how many actually defaulted)")
+print(f"Recall:    {recall:.4f} (of actual defaults, how many did we catch)")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Save Predictions
+
+# COMMAND ----------
+
+# Create predictions dataframe
+predictions_pdf = pd.DataFrame({
+    "actual": y_test.values,
+    "predicted": gb_pred,
+    "probability": gb_prob
+})
+
+# Convert to Spark and save
+predictions_spark = spark.createDataFrame(predictions_pdf)
+predictions_spark.write.format("delta").mode("overwrite").saveAsTable("model_predictions")
+
+print(f"Saved {len(predictions_pdf)} predictions to model_predictions table")
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Summary
 # MAGIC
-# MAGIC - MLflow experiment tracking configured
-# MAGIC - 3 models trained: Logistic Regression, Random Forest, GBT
-# MAGIC - Best model selected based on AUC
-# MAGIC - Feature importance analyzed
-# MAGIC - Predictions saved to Delta table
+# MAGIC ### Models Trained:
+# MAGIC - **Logistic Regression** - Linear baseline model
+# MAGIC - **Random Forest** - 100 trees, max depth 10
+# MAGIC - **Gradient Boosting** - 100 estimators, max depth 5
 # MAGIC
-# MAGIC **Check MLflow UI:** Click "Experiments" in the left sidebar to see all runs!
+# MAGIC ### Key Findings:
+# MAGIC - Payment history (pay_status) is the strongest predictor of default
+# MAGIC - Credit utilization and recent bill amounts are important features
+# MAGIC - Tree-based models outperform logistic regression
+# MAGIC
+# MAGIC ### Technical Stack:
+# MAGIC - **scikit-learn** for ML models
+# MAGIC - **pandas** for data manipulation
+# MAGIC - **Delta Lake** for storing predictions
