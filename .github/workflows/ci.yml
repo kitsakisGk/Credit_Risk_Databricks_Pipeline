@@ -25,12 +25,31 @@ jobs:
           python -m py_compile src/utils/feature_engineering.py
           echo "All Python modules validated successfully"
 
-      - name: Check for syntax errors in notebooks
+      - name: Validate SQL notebooks
         run: |
-          # Remove Databricks magic commands and validate Python syntax
-          for file in notebooks/*.py; do
-            echo "Checking $file"
-            grep -v "^# MAGIC" "$file" | grep -v "^# COMMAND" > /tmp/temp_check.py
-            python -m py_compile /tmp/temp_check.py
+          echo "Checking SQL notebooks..."
+          for file in notebooks/sql/*.sql; do
+            if [ -f "$file" ]; then
+              echo "Found: $file"
+              if [ -s "$file" ]; then
+                echo "  OK - $file has content"
+              else
+                echo "  ERROR - $file is empty"
+                exit 1
+              fi
+            fi
           done
-          echo "All notebooks validated successfully"
+          echo "All SQL notebooks validated successfully"
+
+      - name: Validate Python notebooks
+        run: |
+          echo "Checking Python notebooks..."
+          for file in notebooks/python/*.py; do
+            if [ -f "$file" ]; then
+              echo "Checking $file"
+              grep -v "^# MAGIC" "$file" | grep -v "^# COMMAND" > /tmp/temp_check.py
+              python -m py_compile /tmp/temp_check.py
+              echo "  OK - $file"
+            fi
+          done
+          echo "All Python notebooks validated successfully"

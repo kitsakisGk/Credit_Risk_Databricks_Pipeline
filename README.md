@@ -10,14 +10,15 @@ End-to-end **credit risk assessment pipeline** built on **Databricks Lakehouse**
 
 ## Overview
 
-This project implements a complete ML pipeline for credit risk prediction using the **Medallion Architecture** (Bronze → Silver → Gold), with MLflow experiment tracking.
+This project implements a complete ML pipeline for credit risk prediction using the **Medallion Architecture** (Bronze → Silver → Gold), with MLflow experiment tracking and rule-based risk scoring.
 
 ### Key Highlights
 
 - **Data Engineering**: Medallion architecture with Delta Lake
 - **Machine Learning**: Model training, comparison, and tracking with MLflow
-- **Data Quality**: Automated validation with quality checks
-- **Feature Engineering**: Risk scoring and feature creation
+- **Risk Scoring**: Rule-based credit scoring model
+- **Feature Engineering**: Payment behavior analysis and risk indicators
+- **Two Implementations**: SQL (for SQL Warehouse) and Python (for full compute)
 
 ## Tech Stack
 
@@ -25,30 +26,64 @@ This project implements a complete ML pipeline for credit risk prediction using 
 |-------|------------|
 | Platform | Databricks Lakehouse |
 | Storage | Delta Lake |
-| Compute | Apache Spark |
+| Compute | Apache Spark / SQL Warehouse |
 | ML | MLflow, Spark MLlib |
 | CI/CD | GitHub Actions |
 
+## Dataset
+
+**Taiwan Credit Card Default Dataset** from UCI ML Repository
+- **30,000 records** of credit card customers
+- 23 features including payment history, bill amounts, demographics
+- Binary target: default payment (yes/no)
+- ~22% default rate
+
+Source: [UCI ML Repository](https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients)
+
 ## Getting Started
 
-### Prerequisites
+### Two Options Available
 
-- [Databricks Workspace](https://databricks.com/) (Free trial or Community Edition)
+| Option | Compute Type | Features |
+|--------|--------------|----------|
+| **SQL Notebooks** | SQL Warehouse (Free tier) | Data pipeline + Rule-based scoring |
+| **Python Notebooks** | All-Purpose Compute | Full ML with MLflow + 3 ML models |
 
-### Installation
+---
 
-1. **Import Repository to Databricks**
-   ```
-   Workspace → Create → Git folder → https://github.com/kitsakisGk/credit-risk-databricks-pipeline.git
-   ```
+### Option 1: SQL Warehouse (Free Tier)
 
-2. **Run Notebooks in Order**
-   ```
-   00_setup_environment    →  Downloads data, creates Bronze table
-   02_silver_transformation →  Cleans data, creates Silver table
-   03_gold_aggregation     →  Feature engineering, creates Gold table
-   04_ml_training          →  Trains ML models with MLflow
-   ```
+For Databricks with only SQL Warehouse access.
+
+**Setup:**
+1. Download dataset: [UCI Credit Card Data](https://archive.ics.uci.edu/ml/machine-learning-databases/00350/default%20of%20credit%20card%20clients.xls)
+2. In Databricks: **Catalog** → **Create Table** → Upload the Excel file
+   - Schema: `kitsakis_credit_risk`
+   - Table: `bronze_credit_applications`
+
+**Run Notebooks:**
+```
+notebooks/sql/01_bronze_cleanup.sql      → Fix column names
+notebooks/sql/02_silver_transformation.sql → Data cleaning + features
+notebooks/sql/03_gold_aggregation.sql    → Feature engineering
+notebooks/sql/04_risk_analysis.sql       → Risk scoring + metrics
+```
+
+---
+
+### Option 2: Python Compute (Full ML)
+
+For Databricks with Python compute cluster or serverless.
+
+**Run Notebooks:**
+```
+notebooks/python/00_setup_environment.py  → Downloads data, creates Bronze
+notebooks/python/01_silver_transformation.py → Data cleaning
+notebooks/python/02_gold_features.py      → Feature engineering
+notebooks/python/03_ml_training.py        → MLflow + 3 ML models
+```
+
+---
 
 ## Pipeline Architecture
 
@@ -57,29 +92,49 @@ This project implements a complete ML pipeline for credit risk prediction using 
 │   SOURCE    │───▶│   BRONZE    │───▶│   SILVER    │───▶│    GOLD     │
 │  (UCI Data) │    │    (Raw)    │    │  (Cleaned)  │    │ (Features)  │
 └─────────────┘    └─────────────┘    └─────────────┘    └──────┬──────┘
-                                                                │
-                   ┌─────────────┐    ┌─────────────┐           │
-                   │   MLFLOW    │◀───│  TRAINING   │◀──────────┘
-                   │ (Tracking)  │    │  (Models)   │
-                   └─────────────┘    └─────────────┘
+                                                               │
+                  ┌─────────────┐    ┌─────────────┐           │
+                  │   MLFLOW    │◀───│  TRAINING   │◀──────────┘
+                  │ (Tracking)  │    │  (Models)   │
+                  └─────────────┘    └─────────────┘
 ```
 
 ## Project Structure
 
 ```
 ├── notebooks/
-│   ├── 00_setup_environment.py    # Setup + data ingestion
-│   ├── 02_silver_transformation.py # Data cleaning
-│   ├── 03_gold_aggregation.py     # Feature engineering
-│   └── 04_ml_training.py          # Model training
-├── src/utils/                      # Reusable modules
-├── config/                         # Configuration files
-└── .github/workflows/              # CI/CD
+│   ├── sql/                              # SQL Warehouse compatible
+│   │   ├── 01_bronze_cleanup.sql
+│   │   ├── 02_silver_transformation.sql
+│   │   ├── 03_gold_aggregation.sql
+│   │   └── 04_risk_analysis.sql
+│   └── python/                           # Full Python/MLflow
+│       ├── 00_setup_environment.py
+│       ├── 01_silver_transformation.py
+│       ├── 02_gold_features.py
+│       └── 03_ml_training.py
+├── src/utils/                            # Reusable modules
+├── data/                                 # Sample data
+└── .github/workflows/                    # CI/CD
 ```
 
-## Dataset
+## Features Engineered
 
-[German Credit Risk Dataset](https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)) from UCI ML Repository (1,000 records, 20 features).
+| Feature | Description |
+|---------|-------------|
+| `months_delayed` | Count of months with payment delay |
+| `max_delay_months` | Worst payment delay |
+| `credit_utilization` | Current balance / Credit limit |
+| `total_risk_score` | Combined risk indicator |
+| `payment_ratio` | Payment amount / Bill amount |
+
+## Model Performance (Python)
+
+| Model | AUC | Accuracy |
+|-------|-----|----------|
+| Gradient Boosted Trees | ~0.78 | ~82% |
+| Random Forest | ~0.77 | ~81% |
+| Logistic Regression | ~0.72 | ~78% |
 
 ## License
 
