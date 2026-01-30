@@ -47,7 +47,8 @@ jobs:
           for file in notebooks/python/*.py; do
             if [ -f "$file" ]; then
               echo "Checking $file"
-              grep -v "^# MAGIC" "$file" | grep -v "^# COMMAND" > /tmp/temp_check.py
+              # Remove Databricks magic commands and %pip/%sql lines
+              grep -v "^# MAGIC" "$file" | grep -v "^# COMMAND" | grep -v "^%pip" | grep -v "^%sql" > /tmp/temp_check.py
               python -m py_compile /tmp/temp_check.py
               echo "  OK - $file"
             fi
