@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Data files (use sample data in repo, not full datasets)
+data/raw/
+data/processed/
+*.csv
+*.parquet
+*.json
+!data/sample/*.csv
+!config/*.json
+
+# Databricks
+.databricks/
+*.dbc
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+secrets/
+credentials/

@@ -1,0 +1,142 @@
+# Pipeline Configuration
+# Credit Risk ML Pipeline
+
+# Project Settings
+project:
+  name: credit_risk_pipeline
+  version: "1.0.0"
+  environment: development  # development, staging, production
+
+# Data Paths
+paths:
+  base: "/FileStore/{username}/credit_risk_pipeline"
+  bronze: "${paths.base}/bronze"
+  silver: "${paths.base}/silver"
+  gold: "${paths.base}/gold"
+  checkpoints: "${paths.base}/checkpoints"
+  landing: "${paths.base}/landing"
+
+# Database Settings
+database:
+  name: "{username}_credit_risk_pipeline"
+  catalog: hive_metastore  # or unity catalog name
+
+# Data Quality Thresholds
+data_quality:
+  min_completeness: 0.95  # 95% non-null required
+  max_duplicate_ratio: 0.01  # Max 1% duplicates allowed
+  expectations:
+    age:
+      min: 18
+      max: 100
+    credit_amount:
+      min: 0
+      max: 100000
+    duration_months:
+      min: 1
+      max: 120
+
+# Feature Engineering
+features:
+  numerical:
+    - duration_months
+    - credit_amount
+    - installment_rate
+    - residence_duration
+    - age
+    - existing_credits
+    - num_dependents
+  categorical:
+    - checking_status
+    - credit_history
+    - purpose
+    - savings_status
+    - employment_duration
+    - personal_status
+    - other_parties
+    - property_magnitude
+    - other_payment_plans
+    - housing
+    - job
+  target: credit_risk
+
+# ML Training Configuration
+ml:
+  experiment_name: "/Users/{username}/credit_risk_experiment"
+  train_test_split: 0.8
+  random_seed: 42
+
+  models:
+    logistic_regression:
+      max_iter: 100
+      reg_param: 0.01
+    random_forest:
+      num_trees: 100
+      max_depth: 5
+    gradient_boosted_trees:
+      max_iter: 50
+      max_depth: 5
+
+  hyperparameter_tuning:
+    enabled: true
+    num_folds: 5
+    parallelism: 4
+
+  model_registry:
+    name: "{database}_credit_risk_model"
+    stages:
+      - None
+      - Staging
+      - Production
+
+# Streaming Configuration
+streaming:
+  enabled: true
+  trigger_interval: "10 seconds"
+  watermark_delay: "10 seconds"
+  batch_size: 1000
+
+  sources:
+    kafka:
+      bootstrap_servers: "localhost:9092"
+      topic: "credit-applications"
+    auto_loader:
+      format: json
+      schema_inference: true
+
+# Monitoring & Alerting
+monitoring:
+  metrics:
+    - pipeline_duration_seconds
+    - records_processed
+    - data_quality_score
+    - model_accuracy
+    - prediction_latency_ms
+
+  alerts:
+    data_quality_failure:
+      threshold: 0.9
+      notification: email
+    model_degradation:
+      metric: auc
+      threshold: 0.7
+      notification: slack
+
+# Scheduling
+schedule:
+  timezone: "Europe/Zurich"
+  daily_batch:
+    cron: "0 6 * * *"  # 6 AM daily
+  weekly_retrain:
+    cron: "0 2 * * 0"  # 2 AM Sunday
+
+# Resource Settings
+resources:
+  pipeline_cluster:
+    node_type: Standard_DS3_v2
+    num_workers: 2
+    spark_version: "13.3.x-scala2.12"
+  ml_cluster:
+    node_type: Standard_DS4_v2
+    num_workers: 4
+    spark_version: "13.3.x-cpu-ml-scala2.12"
