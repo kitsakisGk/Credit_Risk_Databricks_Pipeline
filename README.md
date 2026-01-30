@@ -24,7 +24,7 @@ End-to-end credit risk assessment pipeline built on Databricks Lakehouse, featur
 - **Real-time Processing** - Streaming ingestion with exactly-once semantics
 - **ML Pipeline** - Automated training, hyperparameter tuning, model registry
 - **Data Quality** - Validation framework with quarantine handling
-- **Production Ready** - Orchestration, testing, CI/CD
+- **Production Ready** - Orchestration, CI/CD
 
 ## Quick Start
 
@@ -60,8 +60,6 @@ End-to-end credit risk assessment pipeline built on Databricks Lakehouse, featur
 ├── src/utils/
 │   ├── data_quality.py
 │   └── feature_engineering.py
-├── tests/
-│   └── test_transformations.py
 ├── config/
 │   ├── pipeline_config.yaml
 │   └── workflow_config.json
