@@ -336,6 +336,8 @@ predictions_df = pd.DataFrame({
     'probability': y_prob
 })
 
+# Drop existing table and save
+spark.sql("DROP TABLE IF EXISTS xgboost_predictions")
 spark_df = spark.createDataFrame(predictions_df)
 spark_df.write.format("delta").mode("overwrite").saveAsTable("xgboost_predictions")
 

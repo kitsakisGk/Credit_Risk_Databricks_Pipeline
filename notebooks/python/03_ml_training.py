@@ -288,7 +288,8 @@ predictions_pdf = pd.DataFrame({
     "probability": gb_prob
 })
 
-# Convert to Spark and save
+# Drop existing table and save
+spark.sql("DROP TABLE IF EXISTS model_predictions")
 predictions_spark = spark.createDataFrame(predictions_pdf)
 predictions_spark.write.format("delta").mode("overwrite").saveAsTable("model_predictions")
 
