@@ -1,4 +1,3 @@
-# Credit Risk Pipeline Utilities
 """
 Utility modules for the Credit Risk ML Pipeline.
 
