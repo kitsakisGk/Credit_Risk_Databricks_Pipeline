@@ -16,7 +16,7 @@
       "task_key": "01_bronze_ingestion",
       "description": "Download data and create Bronze table",
       "notebook_task": {
-        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/00_setup_environment",
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/00_setup_environment",
         "source": "GIT"
       },
       "timeout_seconds": 3600,
@@ -29,7 +29,7 @@
         {"task_key": "01_bronze_ingestion"}
       ],
       "notebook_task": {
-        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/01_silver_transformation",
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/01_silver_transformation",
         "source": "GIT"
       },
       "timeout_seconds": 1800,
@@ -42,7 +42,7 @@
         {"task_key": "02_silver_transformation"}
       ],
       "notebook_task": {
-        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/02_gold_features",
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/02_gold_features",
         "source": "GIT"
       },
       "timeout_seconds": 1800,
@@ -55,7 +55,7 @@
         {"task_key": "03_gold_features"}
       ],
       "notebook_task": {
-        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/03_ml_training",
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/03_ml_training",
         "source": "GIT"
       },
       "timeout_seconds": 3600,
@@ -68,7 +68,7 @@
         {"task_key": "03_gold_features"}
       ],
       "notebook_task": {
-        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/04_advanced_ml",
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/04_advanced_ml",
         "source": "GIT"
       },
       "timeout_seconds": 3600,

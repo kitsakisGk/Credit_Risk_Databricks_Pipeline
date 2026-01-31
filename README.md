@@ -1,6 +1,6 @@
 # Credit Risk ML Pipeline
 
-[![CI](https://github.com/kitsakisGk/credit-risk-databricks-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/kitsakisGk/credit-risk-databricks-pipeline/actions/workflows/ci.yml)
+[![CI](https://github.com/kitsakisGk/Credit_Risk_Databricks_Pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/kitsakisGk/Credit_Risk_Databricks_Pipeline/actions/workflows/ci.yml)
 ![Databricks](https://img.shields.io/badge/Databricks-FF3621?style=flat&logo=databricks&logoColor=white)
 ![Delta Lake](https://img.shields.io/badge/Delta%20Lake-00ADD8?style=flat&logo=delta&logoColor=white)
 ![XGBoost](https://img.shields.io/badge/XGBoost-337AB7?style=flat&logo=xgboost&logoColor=white)
@@ -13,7 +13,7 @@ End-to-end **credit risk assessment pipeline** built on **Databricks Lakehouse**
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/kitsakisGk/credit-risk-databricks-pipeline.git
+git clone https://github.com/kitsakisGk/Credit_Risk_Databricks_Pipeline.git
 ```
 
 ### Step 2: Upload Data to Databricks
@@ -35,7 +35,7 @@ The dataset is included in this repo: `data/default of credit card clients.xls`
 
 1. In Databricks, go to **Workspace**
 2. Click **Import** → **URL**
-3. Enter: `https://github.com/kitsakisGk/credit-risk-databricks-pipeline`
+3. Enter: `https://github.com/kitsakisGk/Credit_Risk_Databricks_Pipeline`
 4. Or manually copy notebook contents
 
 ### Step 4: Run Notebooks in Order
@@ -119,7 +119,7 @@ This project demonstrates ML techniques required by Swiss financial regulators:
 ## Project Structure
 
 ```
-credit-risk-databricks-pipeline/
+Credit_Risk_Databricks_Pipeline/
 ├── data/
 │   └── default of credit card clients.xls   # Dataset (30K records)
 ├── notebooks/
