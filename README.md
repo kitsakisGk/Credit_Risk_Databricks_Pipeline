@@ -53,7 +53,16 @@ Source: [UCI ML Repository](https://archive.ics.uci.edu/ml/datasets/default+of+c
 
 ## Getting Started
 
-### Run Notebooks in Order:
+### Step 1: Setup Data
+
+1. **Download the dataset** from UCI: [Default of Credit Card Clients](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
+2. **Upload to Databricks**:
+   - Go to **Catalog** → **Create Table** → **Upload File**
+   - Select the Excel file
+   - Schema: `kitsakis_credit_risk`
+   - Table name: `bronze_credit_raw`
+
+### Step 2: Run Notebooks in Order:
 
 ```
 notebooks/python/00_setup_environment.py   → Download data, create Bronze table
