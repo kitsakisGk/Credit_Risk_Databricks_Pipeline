@@ -85,20 +85,6 @@ notebooks/sql/04_risk_analysis.sql
                    └─────────────┘    └─────────────┘
 ```
 
-## Project Structure
-
-```
-├── notebooks/
-│   ├── python/                           # Main pipeline (pandas + sklearn)
-│   │   ├── 00_setup_environment.py       # Data ingestion
-│   │   ├── 01_silver_transformation.py   # Data cleaning
-│   │   ├── 02_gold_features.py           # Feature engineering
-│   │   ├── 03_ml_training.py             # Baseline models
-│   │   └── 04_advanced_ml.py             # XGBoost + SHAP
-│   └── sql/                              # SQL Warehouse version
-├── src/utils/                            # Reusable modules
-└── .github/workflows/                    # CI/CD
-```
 
 ## Features Engineered
 
