@@ -14,7 +14,6 @@
 # COMMAND ----------
 
 SCHEMA_NAME = "kitsakis_credit_risk"
-DATASET_URL = "https://archive.ics.uci.edu/ml/machine-learning-databases/00350/default%20of%20credit%20card%20clients.xls"
 
 # COMMAND ----------
 
@@ -30,27 +29,31 @@ print(f"Using schema: {SCHEMA_NAME}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Install Dependencies
-
-# COMMAND ----------
-
-%pip install openpyxl --quiet
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## Download Dataset
+# MAGIC
+# MAGIC Using Kaggle mirror which is more reliable than UCI direct link.
 
 # COMMAND ----------
 
 import pandas as pd
 import numpy as np
 
-# Download directly from UCI repository
-print(f"Downloading from: {DATASET_URL}")
-df = pd.read_excel(DATASET_URL, header=1, engine='openpyxl')
+# Direct CSV URL from a reliable source
+# This is the same UCI dataset hosted on a stable mirror
+DATA_URL = "https://raw.githubusercontent.com/selva86/datasets/master/default_of_credit_card_clients.csv"
 
+print(f"Downloading from: {DATA_URL}")
+df = pd.read_csv(DATA_URL)
 print(f"Downloaded {len(df)} records with {len(df.columns)} columns")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Examine Raw Data
+
+# COMMAND ----------
+
+df.head()
 
 # COMMAND ----------
 
@@ -59,16 +62,43 @@ print(f"Downloaded {len(df)} records with {len(df.columns)} columns")
 
 # COMMAND ----------
 
-# Rename columns to clean names
-df.columns = [
-    'id', 'credit_limit', 'sex', 'education', 'marriage', 'age',
-    'pay_status_1', 'pay_status_2', 'pay_status_3', 'pay_status_4', 'pay_status_5', 'pay_status_6',
-    'bill_amt_1', 'bill_amt_2', 'bill_amt_3', 'bill_amt_4', 'bill_amt_5', 'bill_amt_6',
-    'pay_amt_1', 'pay_amt_2', 'pay_amt_3', 'pay_amt_4', 'pay_amt_5', 'pay_amt_6',
-    'default_payment'
-]
+# The CSV has different column names, let's standardize them
+# First check what we have
+print("Original columns:")
+print(df.columns.tolist())
 
-print("Columns renamed:")
+# COMMAND ----------
+
+# Rename columns to clean, consistent names
+df = df.rename(columns={
+    'ID': 'id',
+    'LIMIT_BAL': 'credit_limit',
+    'SEX': 'sex',
+    'EDUCATION': 'education',
+    'MARRIAGE': 'marriage',
+    'AGE': 'age',
+    'PAY_0': 'pay_status_1',
+    'PAY_2': 'pay_status_2',
+    'PAY_3': 'pay_status_3',
+    'PAY_4': 'pay_status_4',
+    'PAY_5': 'pay_status_5',
+    'PAY_6': 'pay_status_6',
+    'BILL_AMT1': 'bill_amt_1',
+    'BILL_AMT2': 'bill_amt_2',
+    'BILL_AMT3': 'bill_amt_3',
+    'BILL_AMT4': 'bill_amt_4',
+    'BILL_AMT5': 'bill_amt_5',
+    'BILL_AMT6': 'bill_amt_6',
+    'PAY_AMT1': 'pay_amt_1',
+    'PAY_AMT2': 'pay_amt_2',
+    'PAY_AMT3': 'pay_amt_3',
+    'PAY_AMT4': 'pay_amt_4',
+    'PAY_AMT5': 'pay_amt_5',
+    'PAY_AMT6': 'pay_amt_6',
+    'default.payment.next.month': 'default_payment'
+})
+
+print("Cleaned columns:")
 print(df.columns.tolist())
 
 # COMMAND ----------
@@ -97,6 +127,17 @@ df.describe()
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Target Distribution
+
+# COMMAND ----------
+
+print("Default Payment Distribution:")
+print(df['default_payment'].value_counts())
+print(f"\nDefault Rate: {df['default_payment'].mean()*100:.2f}%")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## Save Bronze Table
 
 # COMMAND ----------
@@ -121,11 +162,16 @@ spark.sql("SELECT COUNT(*) as total FROM bronze_credit_applications").show()
 
 # COMMAND ----------
 
+spark.sql("SELECT * FROM bronze_credit_applications LIMIT 5").show()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Summary
 # MAGIC
-# MAGIC - Downloaded 30,000 credit card records from UCI repository
-# MAGIC - Cleaned column names
+# MAGIC - Downloaded 30,000 credit card records
+# MAGIC - Cleaned and standardized column names
 # MAGIC - Saved as Bronze Delta table
+# MAGIC - Default rate: ~22%
 # MAGIC
 # MAGIC **Next:** Run `01_silver_transformation`
