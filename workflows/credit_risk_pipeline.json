@@ -1,0 +1,83 @@
+{
+  "name": "Credit_Risk_ML_Pipeline",
+  "description": "End-to-end credit risk assessment pipeline with ML training",
+  "schedule": {
+    "quartz_cron_expression": "0 0 6 * * ?",
+    "timezone_id": "Europe/Zurich",
+    "pause_status": "PAUSED"
+  },
+  "tags": {
+    "project": "credit_risk",
+    "team": "data_engineering",
+    "environment": "production"
+  },
+  "tasks": [
+    {
+      "task_key": "01_bronze_ingestion",
+      "description": "Download data and create Bronze table",
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/00_setup_environment",
+        "source": "GIT"
+      },
+      "timeout_seconds": 3600,
+      "max_retries": 2
+    },
+    {
+      "task_key": "02_silver_transformation",
+      "description": "Clean data and create Silver table",
+      "depends_on": [
+        {"task_key": "01_bronze_ingestion"}
+      ],
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/01_silver_transformation",
+        "source": "GIT"
+      },
+      "timeout_seconds": 1800,
+      "max_retries": 2
+    },
+    {
+      "task_key": "03_gold_features",
+      "description": "Feature engineering and create Gold table",
+      "depends_on": [
+        {"task_key": "02_silver_transformation"}
+      ],
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/02_gold_features",
+        "source": "GIT"
+      },
+      "timeout_seconds": 1800,
+      "max_retries": 2
+    },
+    {
+      "task_key": "04_ml_training",
+      "description": "Train baseline ML models",
+      "depends_on": [
+        {"task_key": "03_gold_features"}
+      ],
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/03_ml_training",
+        "source": "GIT"
+      },
+      "timeout_seconds": 3600,
+      "max_retries": 1
+    },
+    {
+      "task_key": "05_advanced_ml",
+      "description": "Train XGBoost with SHAP explainability",
+      "depends_on": [
+        {"task_key": "03_gold_features"}
+      ],
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/credit-risk-databricks-pipeline/notebooks/python/04_advanced_ml",
+        "source": "GIT"
+      },
+      "timeout_seconds": 3600,
+      "max_retries": 1
+    }
+  ],
+  "email_notifications": {
+    "on_failure": ["your-email@example.com"],
+    "on_success": ["your-email@example.com"]
+  },
+  "format": "MULTI_TASK"
+}

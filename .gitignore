@@ -25,6 +25,7 @@ data/processed/
 *.json
 !data/sample/*.csv
 !config/*.json
+!workflows/*.json
 
 # Databricks
 .databricks/
