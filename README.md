@@ -8,6 +8,53 @@
 
 End-to-end **credit risk assessment pipeline** built on **Databricks Lakehouse**, demonstrating production-grade data engineering and machine learning practices aligned with **Swiss banking standards**.
 
+## Quick Start Guide
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/kitsakisGk/credit-risk-databricks-pipeline.git
+```
+
+### Step 2: Upload Data to Databricks
+
+The dataset is included in this repo: `data/default of credit card clients.xls`
+
+1. Open **Databricks** workspace
+2. Go to **Catalog** (left sidebar)
+3. Click **Create Table** → **Upload File**
+4. Upload the file: `data/default of credit card clients.xls`
+5. Configure:
+   - **Catalog**: `workspace` (or your catalog)
+   - **Schema**: `kitsakis_credit_risk` (create new if needed)
+   - **Table name**: `bronze_credit_raw`
+   - **First row contains header**: ✅ Check this
+6. Click **Create Table**
+
+### Step 3: Import Notebooks to Databricks
+
+1. In Databricks, go to **Workspace**
+2. Click **Import** → **URL**
+3. Enter: `https://github.com/kitsakisGk/credit-risk-databricks-pipeline`
+4. Or manually copy notebook contents
+
+### Step 4: Run Notebooks in Order
+
+```
+1. notebooks/python/00_setup_environment.py   → Creates Bronze table
+2. notebooks/python/01_silver_transformation.py → Data cleaning
+3. notebooks/python/02_gold_features.py        → Feature engineering
+4. notebooks/python/03_ml_training.py          → Baseline ML models
+5. notebooks/python/04_advanced_ml.py          → XGBoost + SHAP
+```
+
+**Note:** The notebooks handle both:
+- ✅ Manual upload (recommended)
+- ✅ Auto-download from mirror (fallback)
+- ✅ Different column formats (Excel upload vs CSV)
+
+---
+
 ## Overview
 
 This project implements a complete ML pipeline for credit risk prediction using the **Medallion Architecture** (Bronze → Silver → Gold), featuring techniques used by Swiss financial institutions (UBS, Credit Suisse, Julius Baer).
@@ -18,6 +65,20 @@ This project implements a complete ML pipeline for credit risk prediction using 
 - **Swiss Banking ML**: XGBoost + SHAP (used at UBS, Credit Suisse)
 - **Regulatory Compliance**: Model explainability for FINMA requirements
 - **Production Ready**: CI/CD, cross-validation, hyperparameter tuning
+
+## Dataset
+
+**Taiwan Credit Card Default Dataset** from UCI ML Repository
+
+| Property | Value |
+|----------|-------|
+| Records | 30,000 |
+| Features | 23 |
+| Target | Default payment (binary) |
+| Default Rate | ~22% |
+| File | `data/default of credit card clients.xls` |
+
+Source: [UCI ML Repository](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
 
 ## Tech Stack
 
@@ -41,51 +102,12 @@ This project demonstrates ML techniques required by Swiss financial regulators:
 | **Cross-Validation** | Robust validation | Basel III/IV model validation |
 | **Hyperparameter Tuning** | Optimization | Industry best practice |
 
-## Dataset
-
-**Taiwan Credit Card Default Dataset** from UCI ML Repository
-- **30,000 records** of credit card customers
-- 23 features including payment history, bill amounts, demographics
-- Binary target: default payment (yes/no)
-- ~22% default rate
-
-Source: [UCI ML Repository](https://archive.ics.uci.edu/ml/datasets/default+of+credit+card+clients)
-
-## Getting Started
-
-### Step 1: Setup Data
-
-1. **Download the dataset** from UCI: [Default of Credit Card Clients](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
-2. **Upload to Databricks**:
-   - Go to **Catalog** → **Create Table** → **Upload File**
-   - Select the Excel file
-   - Schema: `kitsakis_credit_risk`
-   - Table name: `bronze_credit_raw`
-
-### Step 2: Run Notebooks in Order:
-
-```
-notebooks/python/00_setup_environment.py   → Download data, create Bronze table
-notebooks/python/01_silver_transformation.py → Data cleaning, feature creation
-notebooks/python/02_gold_features.py        → Feature engineering, risk scores
-notebooks/python/03_ml_training.py          → Train baseline ML models
-notebooks/python/04_advanced_ml.py          → XGBoost + SHAP (Swiss banking)
-```
-
-### SQL Version (for SQL Warehouse):
-```
-notebooks/sql/01_bronze_cleanup.sql
-notebooks/sql/02_silver_transformation.sql
-notebooks/sql/03_gold_aggregation.sql
-notebooks/sql/04_risk_analysis.sql
-```
-
 ## Pipeline Architecture
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │   SOURCE    │───▶│   BRONZE    │───▶│   SILVER    │───▶│    GOLD     │
-│  (UCI Data) │    │    (Raw)    │    │  (Cleaned)  │    │ (Features)  │
+│  (Excel)    │    │    (Raw)    │    │  (Cleaned)  │    │ (Features)  │
 └─────────────┘    └─────────────┘    └─────────────┘    └──────┬──────┘
                                                                │
                    ┌─────────────┐    ┌─────────────┐          │
@@ -94,6 +116,27 @@ notebooks/sql/04_risk_analysis.sql
                    └─────────────┘    └─────────────┘
 ```
 
+## Project Structure
+
+```
+credit-risk-databricks-pipeline/
+├── data/
+│   └── default of credit card clients.xls   # Dataset (30K records)
+├── notebooks/
+│   ├── python/                              # Main pipeline
+│   │   ├── 00_setup_environment.py          # Bronze ingestion
+│   │   ├── 01_silver_transformation.py      # Data cleaning
+│   │   ├── 02_gold_features.py              # Feature engineering
+│   │   ├── 03_ml_training.py                # Baseline models
+│   │   └── 04_advanced_ml.py                # XGBoost + SHAP
+│   └── sql/                                 # SQL Warehouse version
+├── workflows/
+│   └── credit_risk_pipeline.json            # Databricks Workflow config
+├── docs/
+│   ├── PROJECT_REPORT.md                    # Full technical report
+│   └── LINKEDIN_POST.md                     # LinkedIn post templates
+└── .github/workflows/ci.yml                 # CI/CD
+```
 
 ## Features Engineered
 
@@ -111,19 +154,14 @@ notebooks/sql/04_risk_analysis.sql
 | Model | AUC | Accuracy | F1 Score |
 |-------|-----|----------|----------|
 | **XGBoost** | ~0.78 | ~82% | ~0.47 |
-| Gradient Boosting | ~0.77 | ~81% | ~0.46 |
-| Random Forest | ~0.77 | ~81% | ~0.45 |
-| Logistic Regression | ~0.72 | ~78% | ~0.40 |
+| Gradient Boosting | ~0.78 | ~82% | ~0.48 |
+| Random Forest | ~0.78 | ~82% | ~0.47 |
+| Logistic Regression | ~0.76 | ~82% | ~0.47 |
 
 ## SHAP Explainability
 
-The `04_advanced_ml.py` notebook demonstrates:
+The `04_advanced_ml.py` notebook demonstrates model interpretability:
 
-- **Global feature importance** - Which features matter most overall
-- **Individual explanations** - Why a specific customer was flagged as high risk
-- **Regulatory compliance** - Audit trail for credit decisions
-
-Example output:
 ```
 INDIVIDUAL CUSTOMER RISK EXPLANATION
 =====================================
@@ -136,6 +174,35 @@ Top factors increasing risk:
   - months_delayed: 4.00 (impact: +0.098)
 ```
 
+## Troubleshooting
+
+### Column Names Issue
+
+The notebook automatically handles different column formats:
+
+| Source | Columns Look Like |
+|--------|-------------------|
+| Excel Upload | `_c0`, `X1`, `X2`, `X3`... |
+| CSV Download | `ID`, `LIMIT_BAL`, `SEX`... |
+
+Both are automatically converted to: `id`, `credit_limit`, `sex`, `education`...
+
+### Common Errors
+
+| Error | Solution |
+|-------|----------|
+| `Table not found` | Run `00_setup_environment.py` first |
+| `Schema not found` | The notebook creates it automatically |
+| `Column not found` | Notebook handles column renaming |
+
 ## License
 
 MIT
+
+## Author
+
+Built for Swiss banking/finance job applications. Demonstrates:
+- Data Engineering (Medallion Architecture)
+- Machine Learning (XGBoost, sklearn)
+- Regulatory Compliance (SHAP explainability)
+- MLOps (CI/CD, Workflows)

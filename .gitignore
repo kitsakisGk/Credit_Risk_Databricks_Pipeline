@@ -17,12 +17,14 @@ env/
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# Data files (use sample data in repo, not full datasets)
+# Data files
 data/raw/
 data/processed/
 *.csv
 *.parquet
 *.json
+!data/*.xls
+!data/*.xlsx
 !data/sample/*.csv
 !config/*.json
 !workflows/*.json
