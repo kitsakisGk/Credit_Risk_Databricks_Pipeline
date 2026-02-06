@@ -51,3 +51,5 @@ model/
 .env
 secrets/
 credentials/
+INTERVIEW_GUIDE.md
+INTERVIEW_GUIDE.pdf

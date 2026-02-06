@@ -26,13 +26,13 @@ jobs:
         run: |
           python -m pytest tests/ -v
 
-      - name: Validate Python modules
+      - name: Validate API modules
         run: |
           python -m py_compile api/main.py
           python -m py_compile api/schemas.py
           python -m py_compile api/feature_engine.py
           python -m py_compile api/train_and_export.py
-          echo "All Python modules validated successfully"
+          echo "All API modules validated successfully"
 
       - name: Validate SQL notebooks
         run: |
