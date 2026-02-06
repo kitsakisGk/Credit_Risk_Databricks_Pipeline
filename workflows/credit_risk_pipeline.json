@@ -73,6 +73,46 @@
       },
       "timeout_seconds": 3600,
       "max_retries": 1
+    },
+    {
+      "task_key": "06_data_quality",
+      "description": "Validate data quality across all layers",
+      "depends_on": [
+        {"task_key": "04_ml_training"},
+        {"task_key": "05_advanced_ml"}
+      ],
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/05_data_quality_monitoring",
+        "source": "GIT"
+      },
+      "timeout_seconds": 1800,
+      "max_retries": 1
+    },
+    {
+      "task_key": "07_model_monitoring",
+      "description": "Monitor model performance and detect drift",
+      "depends_on": [
+        {"task_key": "06_data_quality"}
+      ],
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/06_model_monitoring",
+        "source": "GIT"
+      },
+      "timeout_seconds": 3600,
+      "max_retries": 1
+    },
+    {
+      "task_key": "08_streaming_simulation",
+      "description": "Simulate real-time credit risk scoring",
+      "depends_on": [
+        {"task_key": "06_data_quality"}
+      ],
+      "notebook_task": {
+        "notebook_path": "/Repos/kitsakisGk/Credit_Risk_Databricks_Pipeline/notebooks/python/07_streaming_simulation",
+        "source": "GIT"
+      },
+      "timeout_seconds": 3600,
+      "max_retries": 1
     }
   ],
   "email_notifications": {

@@ -41,6 +41,12 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Model artifacts
+model/
+
+# Pytest
+.pytest_cache/
+
 # Secrets
 .env
 secrets/

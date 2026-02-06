@@ -8,7 +8,7 @@ on:
 
 jobs:
   validate:
-    name: Validate
+    name: Validate & Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,11 +18,20 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install dependencies
+        run: |
+          pip install pandas numpy scikit-learn xgboost pytest
+
+      - name: Run unit tests
+        run: |
+          python -m pytest tests/ -v
+
       - name: Validate Python modules
         run: |
-          python -m py_compile src/utils/__init__.py
-          python -m py_compile src/utils/data_quality.py
-          python -m py_compile src/utils/feature_engineering.py
+          python -m py_compile api/main.py
+          python -m py_compile api/schemas.py
+          python -m py_compile api/feature_engine.py
+          python -m py_compile api/train_and_export.py
           echo "All Python modules validated successfully"
 
       - name: Validate SQL notebooks
@@ -47,7 +56,6 @@ jobs:
           for file in notebooks/python/*.py; do
             if [ -f "$file" ]; then
               echo "Checking $file"
-              # Remove Databricks magic commands and %pip/%sql lines
               grep -v "^# MAGIC" "$file" | grep -v "^# COMMAND" | grep -v "^%pip" | grep -v "^%sql" > /tmp/temp_check.py
               python -m py_compile /tmp/temp_check.py
               echo "  OK - $file"
